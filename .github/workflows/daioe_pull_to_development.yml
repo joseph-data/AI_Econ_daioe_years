@@ -41,7 +41,7 @@ jobs:
       - name: Run data scripts
         run: |
           set -euo pipefail
-          uv run python scripts/main.py
+          uv run ./scripts/main.py
       - name: Upload outputs
         uses: actions/upload-artifact@v4
         with:
@@ -71,8 +71,6 @@ jobs:
           set -euo pipefail
 
           mkdir -p data/
-
-          
 
           if [ ! -f "data/daioe_scb_all_levels.parquet" ]; then
             echo "Missing combined file in artifact: data/daioe_scb_all_levels.parquet"
