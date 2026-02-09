@@ -70,7 +70,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          mkdir -p data/
+          mkdir -p data
 
           if [ ! -f "data/daioe_scb_all_levels.parquet" ]; then
             echo "Missing combined file in artifact: data/daioe_scb_all_levels.parquet"
