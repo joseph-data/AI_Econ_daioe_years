@@ -72,6 +72,8 @@ jobs:
 
           mkdir -p data/
 
+          
+
           if [ ! -f "data/daioe_scb_all_levels.parquet" ]; then
             echo "Missing combined file in artifact: data/daioe_scb_all_levels.parquet"
             exit 1
