@@ -1,7 +1,8 @@
 name: Pull data on daioe_pull and sync data/ to development
 on:
   push:
-    branches: [daioe_pull]
+    branches:
+      - daioe_pull
   workflow_dispatch:
     inputs:
       source_branch:
@@ -31,34 +32,32 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ env.SOURCE_BRANCH }}
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.14"
-
-      - name: Set up uv
-        uses: ./.github/actions/setup-uv
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-
       - name: Install dependencies
         run: uv sync --frozen
-
       - name: Run data scripts
         run: |
           set -euo pipefail
-          uv run python scripts/main.py
-
+          uv run ./scripts/main.py
       - name: Upload outputs
         uses: actions/upload-artifact@v4
         with:
           name: daioe_scb_merge_output
-          path: data/daioe_scb_all_levels.parquet
+          path: |
+            data/daioe_scb_all_levels.parquet
 
   sync-target:
     runs-on: ubuntu-latest
     needs: build-data
+    permissions:
+      contents: write
     env:
       TARGET_BRANCH: ${{ github.event.inputs.target_branch || vars.TARGET_BRANCH || 'development' }}
     steps:
@@ -67,14 +66,12 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ env.TARGET_BRANCH }}
-
       - name: Download outputs
         uses: actions/download-artifact@v4
         with:
           name: daioe_scb_merge_output
           path: .
           merge-multiple: true
-
       - name: Commit and push
         run: |
           set -euo pipefail
@@ -83,7 +80,7 @@ jobs:
 
           found_path="$(find . -maxdepth 5 -type f -name 'daioe_scb_all_levels.parquet' -print -quit)"
           if [ -z "${found_path}" ]; then
-            echo "Missing file: data/daioe_scb_all_levels.parquet"
+            echo "Missing combined file in artifact: data/daioe_scb_all_levels.parquet"
             exit 1
           fi
           if [ "${found_path}" != "./data/daioe_scb_all_levels.parquet" ]; then
@@ -92,7 +89,6 @@ jobs:
 
           git config user.name "joseph-data"
           git config user.email "oluochjoseph00@gmail.com"
-
           git add data/daioe_scb_all_levels.parquet
 
           if git diff --cached --quiet; then

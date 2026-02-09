@@ -1,7 +1,8 @@
 name: Pull data on scb_pull and sync data/ to daioe_pull
 on:
   push:
-    branches: [scb_pull]
+    branches:
+      - scb_pull
   workflow_dispatch:
     inputs:
       source_branch:
@@ -31,27 +32,22 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ env.SOURCE_BRANCH }}
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.14"
-
-      - name: Set up uv
-        uses: ./.github/actions/setup-uv
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-
       - name: Install dependencies
         run: uv sync --frozen
-
       - name: Run data scripts
         run: |
           set -euo pipefail
           uv run python scripts/pull.py
           uv run python scripts/merge.py
           uv run python scripts/aggregate.py
-
       - name: Upload outputs
         uses: actions/upload-artifact@v4
         with:
@@ -63,6 +59,8 @@ jobs:
   sync-target:
     runs-on: ubuntu-latest
     needs: build-data
+    permissions:
+      contents: write
     env:
       TARGET_BRANCH: ${{ github.event.inputs.target_branch || vars.TARGET_BRANCH || 'daioe_pull' }}
     steps:
@@ -71,19 +69,18 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ env.TARGET_BRANCH }}
-
       - name: Download outputs
         uses: actions/download-artifact@v4
         with:
           name: ssyk12-output
-          path: .
-
       - name: Commit and push
         run: |
           set -euo pipefail
 
+          mkdir -p data/processed
+
           if [ ! -f "data/processed/ssyk12_aggregated_ssyk4_to_ssyk1.parquet" ]; then
-            echo "Missing file: data/processed/ssyk12_aggregated_ssyk4_to_ssyk1.parquet"
+            echo "Missing combined file in artifact: data/processed/ssyk12_aggregated_ssyk4_to_ssyk1.parquet"
             exit 1
           fi
 
@@ -92,6 +89,7 @@ jobs:
 
           git add data/processed/ssyk12_aggregated_ssyk4_to_ssyk1.parquet
 
+          # Only add logs if they exist (safe under -e)
           if [ -d "logs" ]; then
             git add logs/
           fi
