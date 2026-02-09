@@ -66,6 +66,8 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: daioe_scb_merge_output
+          path: .
+          merge-multiple: true
       - name: Commit and push
         run: |
           set -euo pipefail
