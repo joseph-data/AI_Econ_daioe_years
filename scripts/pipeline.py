@@ -43,7 +43,7 @@ def default_config(root: Path | None = None) -> PipelineConfig:
         "data/processed/ssyk12_aggregated_ssyk4_to_ssyk1.parquet"
     )
     
-    out_file = data_dir / "daioe_scb_all_levels.parquet"
+    out_file = data_dir / "daioe_scb_years_all_levels.parquet"
 
     return PipelineConfig(
         data_dir=data_dir,
@@ -281,4 +281,15 @@ def build_pipeline(config: PipelineConfig) -> pl.LazyFrame:
         .sort(["level", "year", "ssyk_code"])
     )
 
-    return daioe_all_levels
+    # 7) Final merge with SCB (left join) 
+    final_merge = (
+        scb_lf
+        .join(
+            daioe_all_levels,
+            left_on=["year", "ssyk_code"],
+            right_on=["year", "ssyk_code"],
+            how="left",
+        )
+    )
+
+    return final_merge

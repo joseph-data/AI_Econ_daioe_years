@@ -23,7 +23,7 @@ def main() -> None:
     # Set to True if you want a quick row/column count check (this triggers execution).
     inspect = True
     if inspect:
-        inspect_lazy(lf, "daioe_all_levels")
+        inspect_lazy(lf, "final_merge")
 
     print(f"Writing parquet -> {config.out_file}")
     lf.sink_parquet(config.out_file)
