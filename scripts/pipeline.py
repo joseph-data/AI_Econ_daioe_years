@@ -39,9 +39,10 @@ def default_config(root: Path | None = None) -> PipelineConfig:
     )
 
     scb_source = str(
-        data_dir / "processed" / "ssyk12_aggregated_ssyk4_to_ssyk1.parquet"
+        "https://raw.githubusercontent.com/joseph-data/AI_Econ_daioe_years/daioe_pull/"
+        "data/processed/ssyk12_aggregated_ssyk4_to_ssyk1.parquet"
     )
-
+    
     out_file = data_dir / "daioe_scb_all_levels.parquet"
 
     return PipelineConfig(
