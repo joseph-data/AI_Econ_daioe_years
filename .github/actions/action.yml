@@ -1,0 +1,15 @@
+name: "Setup uv"
+description: "Install uv with optional caching"
+inputs:
+  enable-cache:
+    description: "Enable uv cache"
+    required: false
+    default: "true"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup uv
+      uses: astral-sh/setup-uv@v7
+      with:
+        enable-cache: ${{ inputs.enable-cache }}
