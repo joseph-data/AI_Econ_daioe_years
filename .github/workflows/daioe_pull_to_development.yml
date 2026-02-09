@@ -12,7 +12,7 @@ on:
         description: "Target branch to update with data/ (optional)"
         required: false
   schedule:
-    - cron: "*/20 * * * *" # every 20 minutes (UTC)
+    - cron: "0 0 * * *"  # once per day at 00:00 UTC
 
 permissions:
   contents: write
