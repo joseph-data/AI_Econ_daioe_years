@@ -233,6 +233,50 @@ def build_all_levels(
     return pl.concat(aggregated, how="vertical")
 
 
+def add_exposure_levels_from_weighted_percentiles(
+    lf: pl.LazyFrame,
+    percentile_prefix: str = "pctl_daioe_",
+    weighted_suffix: str = "_wavg",
+) -> pl.LazyFrame:
+    """
+    Convert weighted percentile ranks (0..100) into 1..5 exposure buckets.
+
+    For each `pctl_daioe_*_wavg` column, creates `daioe_*_Level_Exposure`.
+    """
+    percentile_cols = [
+        c
+        for c in lf.collect_schema().names()
+        if c.startswith(percentile_prefix) and c.endswith(weighted_suffix)
+    ]
+
+    if not percentile_cols:
+        return lf
+
+    exposure_exprs: list[pl.Expr] = []
+    for col_name in percentile_cols:
+        metric = col_name[len(percentile_prefix): -len(weighted_suffix)]
+        out_col = f"daioe_{metric}_Level_Exposure"
+        p = pl.col(col_name)
+
+        exposure_exprs.append(
+            pl.when(p.is_null())
+            .then(None)
+            .when(p <= 20)
+            .then(1)
+            .when(p <= 40)
+            .then(2)
+            .when(p <= 60)
+            .then(3)
+            .when(p <= 80)
+            .then(4)
+            .otherwise(5)
+            .cast(pl.Int8)
+            .alias(out_col)
+        )
+
+    return lf.with_columns(exposure_exprs)
+
+
 # ----------------------------
 # Pipeline assembly
 # ----------------------------
@@ -291,7 +335,10 @@ def build_pipeline(config: PipelineConfig) -> pl.LazyFrame:
         .sort(["level", "year", "ssyk_code"])
     )
 
-    # 8) Final merge with SCB (left join)
+    # 8) Add 1..5 exposure levels from weighted DAIOE percentiles
+    daioe_all_levels = add_exposure_levels_from_weighted_percentiles(daioe_all_levels)
+
+    # 9) Final merge with SCB (left join)
     final_merge = (
         scb_lf
         .join(
