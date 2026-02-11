@@ -22,6 +22,7 @@ class PipelineConfig:
     scb_source: str
     out_file: Path
     min_year: int = 2014
+    # Drop military personnel group (leading "0" SSYK codes) early in both sources.
     drop_code1_zero: bool = True
     add_percentiles: bool = True
     pct_scale: int = 100
@@ -242,16 +243,29 @@ def build_pipeline(config: PipelineConfig) -> pl.LazyFrame:
     daioe_lf = pl.scan_csv(config.daioe_source)
     scb_lf = pl.scan_parquet(config.scb_source)
 
-    # 2) Prepare DAIOE codes (code_1..code_4)
+    # 2) Optional early military/code-0 removal in both sources
+    if config.drop_code1_zero:
+        daioe_lf = (
+            daioe_lf
+            .with_columns(pl.col("ssyk2012_4").cast(pl.Utf8))
+            .filter(pl.col("ssyk2012_4").str.starts_with("0").not_())
+        )
+        scb_lf = (
+            scb_lf
+            .with_columns(pl.col("ssyk_code").cast(pl.Utf8))
+            .filter(pl.col("ssyk_code").str.starts_with("0").not_())
+        )
+
+    # 3) Prepare DAIOE codes (code_1..code_4)
     daioe_lf = add_ssyk_hierarchy(daioe_lf, min_year=config.min_year)
 
-    # 3) SCB counts at SSYK4
+    # 4) SCB counts at SSYK4
     scb_lv4 = scb_level4_counts(scb_lf)
 
-    # 4) Extend DAIOE years to match SCB max year
+    # 5) Extend DAIOE years to match SCB max year
     daioe_lf = extend_daioe_years_to_match_scb(daioe_lf, scb_lv4)
 
-    # 5) Join DAIOE with SCB counts (left)
+    # 6) Join DAIOE with SCB counts (left)
     daioe_scb = (
         daioe_lf
         .join(
@@ -262,14 +276,10 @@ def build_pipeline(config: PipelineConfig) -> pl.LazyFrame:
         )
     )
 
-    # Optional: drop military/army etc.
-    if config.drop_code1_zero:
-        daioe_scb = daioe_scb.filter(pl.col("code_1") != "0")
-
     # Pre-compute DAIOE columns once for reuse
     daioe_cols = collect_daioe_columns(daioe_scb, prefix=config.daioe_prefix)
 
-    # 6) Aggregate all levels
+    # 7) Aggregate all levels
     daioe_all_levels = (
         build_all_levels(
             daioe_scb,
@@ -281,7 +291,7 @@ def build_pipeline(config: PipelineConfig) -> pl.LazyFrame:
         .sort(["level", "year", "ssyk_code"])
     )
 
-    # 7) Final merge with SCB (left join) 
+    # 8) Final merge with SCB (left join)
     final_merge = (
         scb_lf
         .join(
