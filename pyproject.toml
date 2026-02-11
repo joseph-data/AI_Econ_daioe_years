@@ -1,0 +1,12 @@
+[project]
+name = "ai-econ-daioe-years"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "faicons>=0.2.2",
+    "pathlib>=1.0.1",
+    "polars>=1.38.1",
+    "shiny>=1.5.1",
+]
