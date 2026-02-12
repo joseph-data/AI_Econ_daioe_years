@@ -151,7 +151,6 @@ def transform(raw_data: list[dict], occ_map: dict, sex_map: dict) -> pl.DataFram
         # filter before casting
         .filter(
             ~pl.col("code").str.ends_with("0002")
-            & ~pl.col("age").str.ends_with("-69")
         )
         .with_columns(
             pl.col("code").cast(pl.Utf8),
