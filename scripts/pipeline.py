@@ -15,6 +15,19 @@ import polars as pl
 # Configuration
 # ----------------------------
 
+AGE_GROUP_MAP = {
+    "16-24": "Early Career 1 (16-24)",
+    "25-29": "Early Career 2 (25-29)",
+    "30-34": "Developing (30-34)",
+    "35-39": "Mid-Career 1 (35-39)",
+    "40-44": "Mid-Career 1 (40-44)",
+    "45-49": "Mid-Career 2 (45-49)",
+    "50-54": "Senior (50+)",
+    "55-59": "Senior (50+)",
+    "60-64": "Senior (50+)",
+    "065-69": "Senior (50+)",
+}
+
 @dataclass(frozen=True)
 class PipelineConfig:
     data_dir: Path
@@ -139,6 +152,15 @@ def scb_level4_counts(
         .group_by([year_col, code_col])
         .agg(pl.col(count_col).sum().alias("total_count"))
     )
+
+
+def add_age_group(
+    scb_lf: pl.LazyFrame,
+    age_col: str = "age",
+    out_col: str = "age_group",
+) -> pl.LazyFrame:
+    """Map SCB age bands into broader career-stage age groups."""
+    return scb_lf.with_columns(pl.col(age_col).replace(AGE_GROUP_MAP).alias(out_col))
 
 
 def collect_daioe_columns(lf: pl.LazyFrame, prefix: str = "daioe_") -> list[str]:
@@ -300,16 +322,19 @@ def build_pipeline(config: PipelineConfig) -> pl.LazyFrame:
             .filter(pl.col("ssyk_code").str.starts_with("0").not_())
         )
 
-    # 3) Prepare DAIOE codes (code_1..code_4)
+    # 3) Add age-group labels to SCB.
+    scb_lf = add_age_group(scb_lf)
+
+    # 4) Prepare DAIOE codes (code_1..code_4)
     daioe_lf = add_ssyk_hierarchy(daioe_lf, min_year=config.min_year)
 
-    # 4) SCB counts at SSYK4
+    # 5) SCB counts at SSYK4
     scb_lv4 = scb_level4_counts(scb_lf)
 
-    # 5) Extend DAIOE years to match SCB max year
+    # 6) Extend DAIOE years to match SCB max year
     daioe_lf = extend_daioe_years_to_match_scb(daioe_lf, scb_lv4)
 
-    # 6) Join DAIOE with SCB counts (left)
+    # 7) Join DAIOE with SCB counts (left)
     daioe_scb = (
         daioe_lf
         .join(
@@ -323,7 +348,7 @@ def build_pipeline(config: PipelineConfig) -> pl.LazyFrame:
     # Pre-compute DAIOE columns once for reuse
     daioe_cols = collect_daioe_columns(daioe_scb, prefix=config.daioe_prefix)
 
-    # 7) Aggregate all levels
+    # 8) Aggregate all levels
     daioe_all_levels = (
         build_all_levels(
             daioe_scb,
@@ -335,10 +360,10 @@ def build_pipeline(config: PipelineConfig) -> pl.LazyFrame:
         .sort(["level", "year", "ssyk_code"])
     )
 
-    # 8) Add 1..5 exposure levels from weighted DAIOE percentiles
+    # 9) Add 1..5 exposure levels from weighted DAIOE percentiles
     daioe_all_levels = add_exposure_levels_from_weighted_percentiles(daioe_all_levels)
 
-    # 9) Final merge with SCB (left join)
+    # 10) Final merge with SCB (left join)
     final_merge = (
         scb_lf
         .join(
