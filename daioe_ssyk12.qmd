@@ -1,0 +1,79 @@
+---
+title: "DAIOE SSYK2012 Workflow"
+format: html
+---
+
+This notebook shows and end-to-end flow for preparing the DAIOE with the SCB SSYK12 statistics for a merger to be used in the output of informative visuals.
+
+## Setup Paths and Data Sources
+
+Define imports, workspace paths, and source locations.
+
+
+```{python}
+import polars as pl
+from pathlib import Path
+
+
+ROOT = Path.cwd().resolve()
+DATA_DIR = ROOT / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+DAIOE_SOURCE: str = (
+    "https://raw.githubusercontent.com/joseph-data/07_translate_ssyk/main/"
+    "03_translated_files/daioe_ssyk2012_translated.csv"
+)
+
+SCB_SOURCE: str = (
+        "https://raw.githubusercontent.com/joseph-data/AI_Econ_daioe_years/daioe_pull/"
+        "data/processed/ssyk12_aggregated_ssyk4_to_ssyk1.parquet"
+)
+```
+
+## Load the DAIOEs and SCB data Lazily
+
+Read the source files as `LazyFrame` objects for efficient transformations.
+
+
+```{python}
+daioe_lazy_lf = pl.scan_csv(
+    DAIOE_SOURCE
+)
+
+scb_lazy_lf = pl.scan_parquet(
+    SCB_SOURCE
+)
+```
+
+## Define Utility Helpers 
+
+This is utility helper is to be re-used when inspecting the `LazyFrame` objects.
+
+
+```{python}
+def inspect_lazy(lf: pl.LazyFrame) -> None:
+    """
+    Print the shape of a Polars LazyFrame in a memory-efficient manner.
+
+    This function computes the number of rows using a lazy row-count
+    aggregation (`pl.len()`) and retrieves the number of columns from
+    the resolved schema without materializing the full dataset.
+
+    Parameters
+    ----------
+    lf : pl.LazyFrame
+        The LazyFrame to inspect.
+
+    Notes
+    -----
+    - The row count triggers execution of the lazy query plan,
+      but avoids collecting all columns into memory.
+    - The column count is obtained from the schema metadata and
+      does not require data materialization.
+    - Intended for debugging and validation of large lazy pipelines.
+    """
+    n_rows = lf.select(pl.len()).collect().item()
+    n_cols = len(lf.collect_schema())
+    print(f"Rows: {n_rows:,}")
+    print(f"Columns: {n_cols}")
+```
