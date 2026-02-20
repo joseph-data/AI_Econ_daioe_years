@@ -1,35 +1,35 @@
 === combine_ssyk12 run ===
-[2026-02-19T02:46:25] [1] Files found: 3
-[2026-02-19T02:46:25] [1] Files (newest first):
-[2026-02-19T02:46:25]      00: ssyk12_20_to_24.parquet
-[2026-02-19T02:46:25]      01: ssyk12_19_to_21.parquet
-[2026-02-19T02:46:25]      02: ssyk12_14_to_18.parquet
-[2026-02-19T02:46:25] [2] Identity columns: ['code', 'occupation', 'age', 'year', 'sex']
-[2026-02-19T02:46:25] [1] Combined rows (lazy count): 111540
-[2026-02-19T02:46:25] [1] Columns (from first file): ['code', 'occupation', 'age', 'sex', 'year', 'count']
-[2026-02-19T02:46:25] [3] Duplicate rows flagged: 34320
-[2026-02-19T02:46:25] [3] Duplicate identity groups: 17160
-[2026-02-19T02:46:25] [4] Conflicting count groups: 8953
-[2026-02-19T02:46:25] [5] Final rows after keep-newest: 94380
-[2026-02-19T02:46:25] [5] Conflicts resolved by newest: 8953
-[2026-02-19T02:46:25] [6] Saved cleaned dataset: /home/runner/work/AI_Econ_daioe_years/AI_Econ_daioe_years/data/processed/ssyk12_combined_cleaned.parquet
-[2026-02-19T02:46:25] [S] Year range: 2014 - 2024
-[2026-02-19T02:46:25] [S] Rows per year:
-[2026-02-19T02:46:25] [S]   Year 2014: 8580 rows
-[2026-02-19T02:46:25] [S]   Year 2015: 8580 rows
-[2026-02-19T02:46:25] [S]   Year 2016: 8580 rows
-[2026-02-19T02:46:25] [S]   Year 2017: 8580 rows
-[2026-02-19T02:46:25] [S]   Year 2018: 8580 rows
-[2026-02-19T02:46:25] [S]   Year 2019: 8580 rows
-[2026-02-19T02:46:25] [S]   Year 2020: 8580 rows
-[2026-02-19T02:46:25] [S]   Year 2021: 8580 rows
-[2026-02-19T02:46:25] [S]   Year 2022: 8580 rows
-[2026-02-19T02:46:25] [S]   Year 2023: 8580 rows
-[2026-02-19T02:46:25] [S]   Year 2024: 8580 rows
-[2026-02-19T02:46:25] [S] Final schema:
-[2026-02-19T02:46:25] [S]   code: String
-[2026-02-19T02:46:25] [S]   occupation: String
-[2026-02-19T02:46:25] [S]   age: Categorical
-[2026-02-19T02:46:25] [S]   sex: Categorical
-[2026-02-19T02:46:25] [S]   year: Int64
-[2026-02-19T02:46:25] [S]   count: Int64
+[2026-02-20T02:40:50] [1] Files found: 3
+[2026-02-20T02:40:50] [1] Files (newest first):
+[2026-02-20T02:40:50]      00: ssyk12_20_to_24.parquet
+[2026-02-20T02:40:50]      01: ssyk12_19_to_21.parquet
+[2026-02-20T02:40:50]      02: ssyk12_14_to_18.parquet
+[2026-02-20T02:40:50] [2] Identity columns: ['code', 'occupation', 'age', 'year', 'sex']
+[2026-02-20T02:40:50] [1] Combined rows (lazy count): 111540
+[2026-02-20T02:40:50] [1] Columns (from first file): ['code', 'occupation', 'age', 'sex', 'year', 'count']
+[2026-02-20T02:40:50] [3] Duplicate rows flagged: 34320
+[2026-02-20T02:40:50] [3] Duplicate identity groups: 17160
+[2026-02-20T02:40:50] [4] Conflicting count groups: 8953
+[2026-02-20T02:40:50] [5] Final rows after keep-newest: 94380
+[2026-02-20T02:40:50] [5] Conflicts resolved by newest: 8953
+[2026-02-20T02:40:50] [6] Saved cleaned dataset: /home/runner/work/AI_Econ_daioe_years/AI_Econ_daioe_years/data/processed/ssyk12_combined_cleaned.parquet
+[2026-02-20T02:40:50] [S] Year range: 2014 - 2024
+[2026-02-20T02:40:50] [S] Rows per year:
+[2026-02-20T02:40:50] [S]   Year 2014: 8580 rows
+[2026-02-20T02:40:50] [S]   Year 2015: 8580 rows
+[2026-02-20T02:40:50] [S]   Year 2016: 8580 rows
+[2026-02-20T02:40:50] [S]   Year 2017: 8580 rows
+[2026-02-20T02:40:50] [S]   Year 2018: 8580 rows
+[2026-02-20T02:40:50] [S]   Year 2019: 8580 rows
+[2026-02-20T02:40:50] [S]   Year 2020: 8580 rows
+[2026-02-20T02:40:50] [S]   Year 2021: 8580 rows
+[2026-02-20T02:40:50] [S]   Year 2022: 8580 rows
+[2026-02-20T02:40:50] [S]   Year 2023: 8580 rows
+[2026-02-20T02:40:50] [S]   Year 2024: 8580 rows
+[2026-02-20T02:40:50] [S] Final schema:
+[2026-02-20T02:40:50] [S]   code: String
+[2026-02-20T02:40:50] [S]   occupation: String
+[2026-02-20T02:40:50] [S]   age: Categorical
+[2026-02-20T02:40:50] [S]   sex: Categorical
+[2026-02-20T02:40:50] [S]   year: Int64
+[2026-02-20T02:40:50] [S]   count: Int64
