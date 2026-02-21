@@ -1,3 +1,10 @@
+
 .venv
 .ruff_cache
 dashboard_local/
+
+
+.vscode/
+
+.python-version
+
