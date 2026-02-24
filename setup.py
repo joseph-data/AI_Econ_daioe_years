@@ -1,19 +1,33 @@
 from pathlib import Path
 import polars as pl
 
+# ---------------------------------------------------
+# Data Preliminaries
+# ---------------------------------------------------
+
 DATA_PATH = (
     Path.cwd().resolve() / "data" / "daioe_scb_years_all_levels.parquet"
 )
 
 lf = pl.scan_parquet(DATA_PATH)
 
-# Small cache of unique values for UI choices (collected once at startup)
+lf.collect_schema()
+
+
+# ---------------------------------------------------
+# Defining Input Values
+# ---------------------------------------------------
+
+# 1. SSYK12 Levels
+
 LEVELS = (
     lf.select(pl.col("level").unique().sort())
     .collect()
     .to_series()
     .to_list()
 )
+
+# 2. Men and Women
 
 SEXES = (
     lf.select(pl.col("sex").unique().sort())
@@ -22,12 +36,27 @@ SEXES = (
     .to_list()
 )
 
-AGES = (
-    lf.select(pl.col("age").unique().sort())
-    .collect()
-    .to_series()
-    .to_list()
+# 3. Age groupings
+
+AGE_ORDER = [
+    "Early Career 1 (16-24)",
+    "Early Career 2 (25-29)",
+    "Developing (30-34)",
+    "Mid-Career 1 (35-39)",
+    "Mid-Career 1 (40-44)",
+    "Mid-Career 2 (45-49)",
+    "Senior (50+)",
+]
+
+present = (
+    lf.select(pl.col("age_group").unique())
+      .collect()
+      .to_series()
+      .to_list()
 )
+
+AGES = [x for x in AGE_ORDER if x in present]
+
 
 YEARS = (
     lf.select(pl.col("year").unique().sort())
@@ -36,9 +65,11 @@ YEARS = (
     .to_list()
 )
 
+# 4. Years from the dataset
+
 YEAR_MIN, YEAR_MAX = min(YEARS), max(YEARS)
 
-#df.collect_schema()
+# 5. AI Sub-Indexes
 
 METRICS: dict[str, str] = {
     "daioe_allapps": "📚 All Applications",
