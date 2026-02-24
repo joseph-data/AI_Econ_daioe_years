@@ -16,3 +16,4 @@ wheels/
 
 *.quarto_ipynb*
 *_files/
+.vscode
