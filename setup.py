@@ -2,17 +2,19 @@ from pathlib import Path
 import io
 import importlib.util
 import polars as pl
+import pandas as pd
 import plotly.graph_objects as go
 import re
 from great_tables import GT
 from shiny.express import ui
+
 
 # ---------------------------------------------------
 # Data Preliminaries
 # ---------------------------------------------------
 
 DATA_PATH = (
-    Path.cwd().resolve() / "data" / "daioe_scb_years_all_levels.parquet"
+    Path.cwd().resolve() / "data" / "processed_data.parquet"
 )
 
 lf = pl.scan_parquet(DATA_PATH)
@@ -136,6 +138,9 @@ def readable_column_name(col: str, metrics: dict[str, str]) -> str:
         "sex": "Sex",
         "level": "SSYK Level",
         "occupation": "Occupation",
+        "chg_1y": "1-year Change",
+        "chg_3y": "3-year Change",
+        "chg_5y": "5-year Change",
     }
     if col in exact:
         return exact[col]
@@ -164,12 +169,24 @@ def as_great_table_html(df, metrics: dict[str, str]) -> ui.TagChild:
         return ui.p("No data available for the selected filters.")
 
     df_display = df.rename(columns={c: readable_column_name(c, metrics) for c in df.columns})
+
+    float_cols = [
+        c for c in df_display.columns
+        if c != "Year" and pd.api.types.is_float_dtype(df_display[c])
+    ]
+
     gt = (
         GT(df_display)
         .opt_row_striping()
         .tab_options(table_font_names=["Nunito Sans", "Arial", "sans-serif"])
+        .opt_stylize(style=2, color="blue")
     )
+
+    if float_cols:
+        gt = gt.fmt_number(columns=float_cols, decimals=2)
+
     return ui.HTML(gt.as_raw_html())
+
 
 
 # ---------------------------------------------------
