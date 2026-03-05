@@ -107,6 +107,25 @@ METRICS: dict[str, str] = {
     "daioe_speechrec": "🎙️ Speech Recognition",
 }
 
+
+first_cols = [
+    "level",
+    "ssyk_code",
+    "occupation",
+    "year",
+    "sex",
+    "age",
+    "age_group",
+    "count",
+    "weight_sum",
+    "chg_1y",
+    "chg_3y",
+    "chg_5y",
+    "pct_chg_1y",
+    "pct_chg_3y",
+    "pct_chg_5y"
+]
+
 # ---------------------------------------------------
 # Shared UI Helpers
 # ---------------------------------------------------

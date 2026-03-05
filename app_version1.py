@@ -19,6 +19,7 @@ from setup import (
     export_filtered_data,
     lf,
     build_choices_by_level,
+    first_cols,
 )
 
 
@@ -32,7 +33,8 @@ ui.page_opts(
 
 
 with ui.sidebar(position="left"):
-    ui.input_select("level", "Occupation Level 🇸🇪", choices=LEVELS, selected="SSYK4")
+    ui.input_select("level", "Occupation Level 🇸🇪", choices=LEVELS, selected="SSYK4")    
+    
     ui.input_selectize(
         "occupation_search",
         "Search/Select Occupation",
@@ -47,6 +49,23 @@ with ui.sidebar(position="left"):
             }
         ),
     )
+
+    ui.input_selectize(
+        "age_search",
+        "Select Age Group",
+        choices=AGES,
+        selected= AGES[0],
+        multiple=True,
+    )
+
+    ui.input_selectize(
+        "sex_search",
+        "Select Gender",
+        choices=SEXES,
+        selected=SEXES,
+        multiple=True,
+    )
+
 
     ui.input_slider(
         "year_range",
@@ -66,30 +85,9 @@ with ui.sidebar(position="left"):
         selected=next(iter(METRICS)),
     )
     
-    # ui.input_select("metric", "AI capability", choices=METRICS, selected="daioe_genai")
-    # ui.input_radio_buttons(
-    #     "score_type",
-    #     "Score type",
-    #     choices=SCORE_TYPES,
-    #     selected="wavg",
-    #     inline=False,
-    # )
-
-    # ui.input_selectize("sex", "Sex", choices=SEXES, selected=SEXES, multiple=True)
-    # ui.input_selectize("age", "Age group", choices=AGE_GROUPS, selected=AGE_GROUPS, multiple=True)
-    # ui.input_slider(
-    #     "year_range",
-    #     "Year range",
-    #     min=YEAR_MIN,
-    #     max=YEAR_MAX,
-    #     value=(YEAR_MIN, YEAR_MAX),
-    #     sep="",
-    # )
-
 
 
 CHOICES_BY_LEVEL = build_choices_by_level(lf, LEVELS)
-
 @reactive.effect
 def _():
     ui.update_selectize(
@@ -101,11 +99,17 @@ def _():
 
 @reactive.calc
 def q_base() -> pl.LazyFrame:
+    metric = input.metric()
     yr_min, yr_max = input.year_range()
     q = lf.filter(
         (pl.col("level") == input.level()) &
-        (pl.col("year").is_between(yr_min, yr_max))
-        )
+        (pl.col("year").is_between(yr_min, yr_max)) &
+        (pl.col("sex").is_in(input.sex_search())) &
+        (pl.col("age_group").is_in(input.age_search()))
+        ).select(
+        pl.col(first_cols),
+        pl.col(f"^{metric}.*$")
+    )
     return q.cache()  
 
 @reactive.calc
@@ -157,5 +161,5 @@ with ui.navset_pill(id="tab"):
 
             @render.ui
             def sample_data():
-                df = filtered_lf().head(20).collect().to_pandas()
+                df = filtered_lf().head(100).collect().to_pandas()
                 return as_great_table_html(df, METRICS)

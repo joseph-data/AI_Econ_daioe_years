@@ -28,7 +28,6 @@ FIRST_COLS = [
     "age_group",
     "count",
     "weight_sum",
-    "unemp_count",
     "chg_1y",
     "chg_3y",
     "chg_5y",
@@ -54,7 +53,7 @@ def compute_change_features(pulled_lf: pl.LazyFrame) -> pl.LazyFrame:
                 ((pl.col("unemp_count") / pl.col("unemp_count").shift(3).over(KEYS) - 1) * 100).alias("pct_chg_3y"),
                 ((pl.col("unemp_count") / pl.col("unemp_count").shift(5).over(KEYS) - 1) * 100).alias("pct_chg_5y"),
             ]
-        )
+        ).drop("unemp_count")
     )
 
 
