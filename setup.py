@@ -35,6 +35,20 @@ LEVELS = (
     .to_list()
 )
 
+
+def build_choices_by_level(lf: pl.LazyFrame, levels: list[str]) -> dict[str, dict[str, str]]:
+    out = {}
+    for lvl in levels:
+        occs = (
+            lf.filter(pl.col("level") == lvl)
+            .select(pl.col("occupation").unique().sort())
+            .collect()
+            .to_series()
+            .to_list()
+        )
+        out[lvl] = {o: o for o in occs}
+    return out
+
 # 2. Men and Women
 
 SEXES = (
@@ -80,6 +94,7 @@ YEAR_MIN, YEAR_MAX = min(YEARS), max(YEARS)
 # 5. AI Sub-Indexes
 
 METRICS: dict[str, str] = {
+    "daioe_genai": "🧠 Generative AI",
     "daioe_allapps": "📚 All Applications",
     "daioe_stratgames": "♟️ Strategy Games",
     "daioe_videogames": "🎮 Video Games (Real-Time)",
@@ -90,7 +105,6 @@ METRICS: dict[str, str] = {
     "daioe_lngmod": "✍️ Language Modeling",
     "daioe_translat": "🌐 Translation",
     "daioe_speechrec": "🎙️ Speech Recognition",
-    "daioe_genai": "🧠 Generative AI",
 }
 
 # ---------------------------------------------------
@@ -133,7 +147,7 @@ def readable_column_name(col: str, metrics: dict[str, str]) -> str:
     exact = {
         "ssyk_code": "SSYK Code",
         "age_group": "Age Group",
-        "count": "Workers",
+        "count": "Employees",
         "year": "Year",
         "sex": "Sex",
         "level": "SSYK Level",

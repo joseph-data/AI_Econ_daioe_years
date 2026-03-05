@@ -18,12 +18,10 @@ from setup import (
     empty_figure,
     export_filtered_data,
     lf,
+    build_choices_by_level,
 )
 
-@reactive.calc
-def filtered_lf():
-    d_lf = lf.head(100)
-    return d_lf
+
 
 
 ui.page_opts(
@@ -31,6 +29,94 @@ ui.page_opts(
     theme=ui.Theme.from_brand(__file__),
     fillable=True,
 )
+
+
+with ui.sidebar(position="left"):
+    ui.input_select("level", "Occupation Level 🇸🇪", choices=LEVELS, selected="SSYK4")
+    ui.input_selectize(
+        "occupation_search",
+        "Search/Select Occupation",
+        choices={},
+        selected=[],
+        multiple=True,
+        options=(
+            {
+                "placeholder": "Software Developers...",
+                "create": False,
+                "plugins": ["clear_button"],
+            }
+        ),
+    )
+
+    ui.input_slider(
+        "year_range",
+        "Year range",
+        min=YEAR_MIN,
+        max=YEAR_MAX,
+        value=(YEAR_MIN, YEAR_MAX),
+        step=1,
+        ticks=True,
+        sep="",
+    )
+
+    ui.input_select(
+        "metric",
+        "Sub-index",
+        choices=METRICS,
+        selected=next(iter(METRICS)),
+    )
+    
+    # ui.input_select("metric", "AI capability", choices=METRICS, selected="daioe_genai")
+    # ui.input_radio_buttons(
+    #     "score_type",
+    #     "Score type",
+    #     choices=SCORE_TYPES,
+    #     selected="wavg",
+    #     inline=False,
+    # )
+
+    # ui.input_selectize("sex", "Sex", choices=SEXES, selected=SEXES, multiple=True)
+    # ui.input_selectize("age", "Age group", choices=AGE_GROUPS, selected=AGE_GROUPS, multiple=True)
+    # ui.input_slider(
+    #     "year_range",
+    #     "Year range",
+    #     min=YEAR_MIN,
+    #     max=YEAR_MAX,
+    #     value=(YEAR_MIN, YEAR_MAX),
+    #     sep="",
+    # )
+
+
+
+CHOICES_BY_LEVEL = build_choices_by_level(lf, LEVELS)
+
+@reactive.effect
+def _():
+    ui.update_selectize(
+        "occupation_search",
+        choices=CHOICES_BY_LEVEL[input.level()],
+        selected=[],
+        server=True,   # recommended if lots of occupations
+    )
+
+@reactive.calc
+def q_base() -> pl.LazyFrame:
+    yr_min, yr_max = input.year_range()
+    q = lf.filter(
+        (pl.col("level") == input.level()) &
+        (pl.col("year").is_between(yr_min, yr_max))
+        )
+    return q.cache()  
+
+@reactive.calc
+def filtered_lf() -> pl.LazyFrame:
+    occ = input.occupation_search()
+    q = q_base()
+
+    if occ:
+        q = q.filter(pl.col("occupation").is_in(occ))
+
+    return q
 
 with ui.navset_pill(id="tab"):
     with ui.nav_panel("Visuals", value="visuals"):
