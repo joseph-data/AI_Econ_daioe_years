@@ -25,9 +25,3 @@ This repository replaces a traditional directory-first organization with a branc
 4.  **`main` (Production)**
     *   **Purpose**: Contains the stable, production-ready codebase. Considered the ultimate source of truth for the project's scripting logic.
 
-## Setup & Installation
-
-1. Clone this repository and checkout your desired branch.
-2. Ensure you have Python installed along with the `uv` package manager (e.g., `pip install uv`).
-3. Install the project dependencies by running `uv sync` in the root of the project.
-4. To run scripts manually locally, ensure the raw DAIOE metrics and SCB SSYK 2012 crosswalk data are placed in the `data/raw/` directory.
