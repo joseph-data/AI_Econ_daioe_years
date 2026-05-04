@@ -1,6 +1,6 @@
-import polars as pl
 import numpy as np
 import plotly.graph_objects as go
+import polars as pl
 from shiny import reactive
 from shiny.express import input, render, ui
 from shinywidgets import render_widget
@@ -12,19 +12,14 @@ from setup import (
     SEXES,
     YEAR_MAX,
     YEAR_MIN,
-    apply_plot_style,
     as_great_table_html,
+    build_choices_by_level,
     download_extension,
     download_media_type,
-    empty_figure,
     export_filtered_data,
-    lf,
-    build_choices_by_level,
     first_cols,
+    lf,
 )
-
-
-
 
 ui.page_opts(
     title="Yearly AI Exposure Dashboard",
@@ -34,8 +29,8 @@ ui.page_opts(
 
 
 with ui.sidebar(position="left"):
-    ui.input_select("level", "Occupation Level 🇸🇪", choices=LEVELS, selected="SSYK4")    
-    
+    ui.input_select("level", "Occupation Level 🇸🇪", choices=LEVELS, selected="SSYK4")
+
     ui.input_selectize(
         "occupation_search",
         "Search/Select Occupation",
@@ -85,7 +80,7 @@ with ui.sidebar(position="left"):
         choices=METRICS,
         selected=next(iter(METRICS)),
     )
-    
+
 
 
 CHOICES_BY_LEVEL = build_choices_by_level(lf, LEVELS)
@@ -106,12 +101,12 @@ def q_base() -> pl.LazyFrame:
         (pl.col("level") == input.level()) &
         (pl.col("year").is_between(yr_min, yr_max)) &
         (pl.col("sex").is_in(input.sex_search())) &
-        (pl.col("age_group").is_in(input.age_search()))
+        (pl.col("age_group").is_in(input.age_search())),
         ).select(
         pl.col(first_cols),
-        pl.col(f"^(pctl_)?{metric}.*$")
+        pl.col(f"^(pctl_)?{metric}.*$"),
     )
-    return q.cache()  
+    return q.cache()
 
 @reactive.calc
 def filtered_lf() -> pl.LazyFrame:
@@ -137,7 +132,7 @@ def pyramid_counts() -> pl.DataFrame:
               pl.when(pl.col("sex") == "men")
                 .then(-pl.col("value"))
                 .otherwise(pl.col("value"))
-                .alias("value")
+                .alias("value"),
           )
     )
     return out
@@ -147,7 +142,7 @@ with ui.navset_pill(id="tab"):
     with ui.nav_panel("Visuals", value="visuals"):
         with ui.card(full_screen=True, height="1000px"):
             ui.card_header("Search result: occupation visual")
-            
+
             @render_widget
             def pyramid_plot():
                 df = pyramid_counts()
@@ -227,7 +222,7 @@ with ui.navset_pill(id="tab"):
 
                 return fig
 
-    
+
 
     with ui.nav_panel("Dataset", value="download_view"):
         with ui.card():
@@ -237,7 +232,7 @@ with ui.navset_pill(id="tab"):
                 You can download the filtered dataset in this section. Current file options are `csv`, `parquet`, and `excel`.
 
                 In the proceeding section, preview the dataset is displayed.
-                """
+                """,
                 )
             ui.input_select(
                 "download_format",

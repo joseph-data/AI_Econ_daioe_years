@@ -1,13 +1,13 @@
-from pathlib import Path
-import io
 import importlib.util
-import polars as pl
+import io
+import re
+from pathlib import Path
+
 import pandas as pd
 import plotly.graph_objects as go
-import re
+import polars as pl
 from great_tables import GT
 from shiny.express import ui
-
 
 # ---------------------------------------------------
 # Data Preliminaries
@@ -123,7 +123,7 @@ first_cols = [
     "chg_5y",
     "pct_chg_1y",
     "pct_chg_3y",
-    "pct_chg_5y"
+    "pct_chg_5y",
 ]
 
 # ---------------------------------------------------

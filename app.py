@@ -1,5 +1,6 @@
-import polars as pl
 import plotly.express as px
+import plotly.graph_objects as go
+import polars as pl
 from shiny import reactive
 from shiny.express import input, render, ui
 from shinywidgets import render_widget
@@ -11,713 +12,434 @@ from setup import (
     SEXES,
     YEAR_MAX,
     YEAR_MIN,
-    apply_plot_style,
+    YEARS,
     as_great_table_html,
+    build_choices_by_level,
     download_extension,
-    download_media_type,
     empty_figure,
     export_filtered_data,
     lf,
 )
 
-BRAND = {
-    "primary": "#441170",
-    "secondary": "#2C054E",
-    "accent": "#12CDB3",
-    "background": "#F4F6F9",
-    "surface": "#FFFFFF",
-    "text": "#1F2D3D",
-}
+### ------------ BRANDING & THEME --------------- ###
 
-SCORE_TYPES: dict[str, str] = {
-    "avg": "Average",
-    "wavg": "Weighted average",
-    "pctl": "Percentile (weighted average)",
-}
+NERO_NAVY = "#002B5C"
+NERO_BLUE = "#005EB8"
+NERO_GRAY = "#666666"
+COLOR_UP = "#28a745"
+COLOR_DOWN = "#dc3545"
 
-AGE_GROUPS = AGES
-BROAD_GROUP_LABELS = {
-    "1": "1 Managers",
-    "2": "2 Professionals",
-    "3": "3 Technicians and Associate Professionals",
-    "4": "4 Clerical Support Workers",
-    "5": "5 Services and Sales Workers",
-    "6": "6 Skilled Agricultural, Forestry and Fishery Workers",
-    "7": "7 Craft and Related Trades Workers",
-    "8": "8 Plant and Machine Operators and Assemblers",
-    "9": "9 Elementary Occupations",
-}
-PAPER_COLORS = [
-    "#5BB0F0",
-    "#ED6A5A",
-    "#7A5AA6",
-    "#C2A83E",
-    "#5CB85C",
-    "#E84A9B",
-    "#3E7BFA",
-]
-SOFTWARE_ENGINEER_CODE = "2512"
-SOFTWARE_ENGINEER_LABEL = "Software- and system developers"
+### ------------ APP UI SETUP --------------- ###
 
 ui.page_opts(
-    title="AI Exposure Dashboard",
+    title="DAIOE Explorer",
     theme=ui.Theme.from_brand(__file__),
     fillable=True,
+    lang="en",
+    full_width=True,
 )
 
 ui.head_content(
     ui.tags.style(
         f"""
-        body {{
-            background: {BRAND["background"]};
-            color: {BRAND["text"]};
-            font-family: "Inter", "Nunito Sans", "Segoe UI", sans-serif;
-        }}
-        .card {{
-            border: 1px solid #E6E8EE !important;
-            border-radius: 0.8rem !important;
-            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
-        }}
-        .nav-pills .nav-link.active {{
-            background-color: {BRAND["primary"]} !important;
-        }}
-        """
-    )
+        body {{ background-color: #F4F7F9; color: #333; font-family: 'Inter', sans-serif; }}
+        .card {{ border-radius: 4px; border: 1px solid #D1D9E0; box-shadow: 0 1px 3px rgba(0,0,0,0.05); background: white; }}
+        .nav-pills .nav-link.active {{ background-color: {NERO_NAVY} !important; }}
+        .value-box {{ border: 1px solid #D1D9E0 !important; background: white !important; }}
+        """,
+    ),
 )
 
-with ui.sidebar(position="left", bg=BRAND["surface"]):
-    ui.h5("Filters", style=f"color: {BRAND['primary']}; font-weight: 700;")
-    ui.input_select("level", "SSYK level", choices=LEVELS, selected="SSYK4")
-    ui.input_selectize(
-        "occupation_search",
-        "Search occupation title",
-        choices={"__all__": "All occupations (all levels)"},
-        selected="__all__",
-        multiple=False,
-    )
-    ui.input_select("metric", "AI capability", choices=METRICS, selected="daioe_genai")
-    ui.input_radio_buttons(
-        "score_type",
-        "Score type",
-        choices=SCORE_TYPES,
-        selected="wavg",
-        inline=False,
-    )
-    ui.input_selectize("sex", "Sex", choices=SEXES, selected=SEXES, multiple=True)
-    ui.input_selectize("age", "Age group", choices=AGE_GROUPS, selected=AGE_GROUPS, multiple=True)
-    ui.input_slider(
-        "year_range",
-        "Year range",
-        min=YEAR_MIN,
-        max=YEAR_MAX,
-        value=(YEAR_MIN, YEAR_MAX),
-        sep="",
-    )
+with ui.navset_pill(id="main_tabs"):
 
+    # PANEL 1: OCCUPATION VIEW
+    with ui.nav_panel("1. Occupation View", value="occ_view"), ui.layout_sidebar():
+        with ui.sidebar(bg="#FFFFFF", width=300, title="Focus Occupation"):
+            ui.input_select("level", "SSYK Level", choices=["Search All Levels", *LEVELS], selected="SSYK4")
+            ui.input_selectize("occ_select", "Select Occupation", choices={}, multiple=False,
+                              options={"placeholder": "Search occupation title..."})
+            ui.hr()
+            ui.input_select("metric", "Primary AI Metric", choices=METRICS, selected="daioe_genai")
+            ui.input_selectize("sex", "Sex", choices=SEXES, selected=SEXES, multiple=True)
+            ui.input_selectize("age", "Age Group", choices=AGES, selected="Early Career 2 (25-29)", multiple=True)
+            ui.input_slider("years", "Year Range", min=YEAR_MIN, max=YEAR_MAX, value=(YEAR_MIN, YEAR_MAX), sep="")
 
-@reactive.calc
-def metric_col() -> str:
-    base = input.metric()
-    score_type = input.score_type()
-    if score_type == "avg":
-        return f"{base}_avg"
-    if score_type == "wavg":
-        return f"{base}_wavg"
-    return f"pctl_{base}_wavg"
+        @render.ui
+        def occ_title():
+            occ = input.occ_select()
+            title = f": {occ}" if occ else ""
+            return ui.markdown(f"### Occupation Deep-Dive{title}")
 
+        with ui.layout_columns(col_widths=[6, 6], gap="1rem"):
+            with ui.value_box(theme="light"):
+                "Total Employment"
+                @render.ui
+                def emp_kpi():
+                    d = occ_data_latest()
+                    if d.is_empty():
+                        return ui.span("---")
+                    return ui.div(
+                        ui.span(f"{int(d['count'][0]):,}", style="font-size: 1.5rem; font-weight: bold;"),
+                        ui.span(f" ({d['year'][0]})", style="font-size: 0.9rem; color: #666; font-weight: normal;"),
+                    )
 
-@reactive.calc
-def score_axis_label() -> str:
-    return SCORE_TYPES.get(input.score_type(), "Score")
+            with ui.value_box(theme="light"):
+                "Percentile Rank"
+                @render.ui
+                def ai_pctl_kpi():
+                    d = occ_data_latest()
+                    if d.is_empty():
+                        return ui.span("---")
+                    m = f"pctl_{input.metric()}_wavg"
+                    return ui.div(
+                        ui.span(f"{float(d[m][0]):.1f}%", style="font-size: 1.5rem; font-weight: bold;"),
+                        ui.span(f" ({d['year'][0]})", style="font-size: 0.9rem; color: #666; font-weight: normal;"),
+                    )
 
+        with ui.layout_columns(col_widths=[4, 4, 4], gap="1rem"):
+            with ui.value_box(theme="light"):
+                "1-yr change"
+                @render.ui
+                def chg_1y_kpi():
+                    d = occ_data_latest()
+                    return format_pct_chg(d["pct_chg_1y"][0] if not d.is_empty() else None)
+
+            with ui.value_box(theme="light"):
+                "3-yr change"
+                @render.ui
+                def chg_3y_kpi():
+                    d = occ_data_latest()
+                    return format_pct_chg(d["pct_chg_3y"][0] if not d.is_empty() else None)
+
+            with ui.value_box(theme="light"):
+                "5-yr change"
+                @render.ui
+                def chg_5y_kpi():
+                    d = occ_data_latest()
+                    return format_pct_chg(d["pct_chg_5y"][0] if not d.is_empty() else None)
+
+        with ui.layout_columns(col_widths=[7, 5], gap="1rem"):
+            with ui.card(full_screen=True):
+                ui.card_header("Employment & Exposure Percentile Trends")
+                @render_widget
+                def occ_trend_plot():
+                    df = occ_trend_data()
+                    if df.is_empty():
+                        return empty_figure("No data for current filters", {"text": "#666"})
+
+                    fig = px.line(df, x="year", y="count", labels={"count": "Employment"})
+                    fig.update_traces(line_color=NERO_BLUE, name="Employment", showlegend=True)
+
+                    m_col = f"pctl_{input.metric()}_wavg"
+                    fig.add_scatter(x=df["year"], y=df[m_col], name=f"{METRICS[input.metric()]} (%)",
+                                  yaxis="y2", line={"color": "#D9534F", "dash": "dash"})
+
+                    fig.update_layout(
+                        template="plotly_white",
+                        yaxis={"title": "Employment"},
+                        yaxis2={"title": "Exposure Percentile", "overlaying": "y", "side": "right", "range": [0, 105]},
+                        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
+                    )
+                    return fig
+
+            with ui.card(full_screen=True):
+                ui.card_header("AI Capability Profile (Percentiles)")
+                @render_widget
+                def ai_profile_plot():
+                    df = occ_data_latest()
+                    if df.is_empty():
+                        return empty_figure("No data", {"text": "#666"})
+
+                    m_names = [METRICS[k] for k in METRICS]
+                    m_vals = [df[f"pctl_{k}_wavg"][0] for k in METRICS]
+
+                    fig = px.bar(x=m_vals, y=m_names, orientation="h",
+                                labels={"x": "Percentile Rank (%)", "y": ""},
+                                range_x=[0, 100])
+                    fig.update_traces(marker_color=NERO_NAVY)
+                    fig.update_layout(template="plotly_white", yaxis={"categoryorder": "total ascending"})
+                    return fig
+
+    # PANEL 2: COMPARISON VIEW
+    with ui.nav_panel("2. Comparison View", value="comp_view"), ui.layout_sidebar():
+        with ui.sidebar(bg="#FFFFFF", width=300, title="Benchmarking"):
+            ui.input_select("comp_level", "SSYK Level", choices=["All Levels", *LEVELS], selected="SSYK4")
+            ui.input_selectize("comp_occs", "Select Occupations", choices={}, multiple=True)
+            ui.hr()
+            ui.input_selectize("comp_age", "Age Group", choices=AGES, selected="Early Career 2 (25-29)", multiple=True)
+            ui.hr()
+            ui.input_select("comp_year", "Comparison Year (Radar)", choices=[str(y) for y in YEARS], selected=str(YEAR_MAX))
+
+        with ui.card():
+            ui.card_header("Benchmarking Summary")
+            @render.ui
+            def comparison_summary():
+                df = comparison_data()
+                if df.is_empty():
+                    return ui.markdown("*Select occupations to generate a summary...*")
+
+                summary_rows = []
+                for occ in df["occupation"].unique():
+                    sub = df.filter(pl.col("occupation") == occ).sort("year")
+
+                    # Get latest data point
+                    latest = sub.tail(1)
+                    curr_yr = latest["year"][0]
+                    curr_emp = latest["count"][0]
+
+                    # Get historical points relative to the latest year available in the filtered set
+                    emp_1y = sub.filter(pl.col("year") == curr_yr - 1)["count"]
+                    emp_3y = sub.filter(pl.col("year") == curr_yr - 3)["count"]
+                    emp_5y = sub.filter(pl.col("year") == curr_yr - 5)["count"]
+
+                    val_1y = f"{int(emp_1y[0]):,}" if not emp_1y.is_empty() else "---"
+                    val_3y = f"{int(emp_3y[0]):,}" if not emp_3y.is_empty() else "---"
+                    val_5y = f"{int(emp_5y[0]):,}" if not emp_5y.is_empty() else "---"
+
+                    summary_rows.append(
+                        ui.tags.tr(
+                            ui.tags.td(occ, style="font-weight: bold;"),
+                            ui.tags.td(val_5y),
+                            ui.tags.td(val_3y),
+                            ui.tags.td(val_1y),
+                            ui.tags.td(f"{int(curr_emp):,}", style="background-color: #f8f9fa; font-weight: bold;"),
+                        ),
+                    )
+
+                latest_yr = df["year"].max()
+                return ui.tags.table(
+                    ui.tags.thead(
+                        ui.tags.tr(
+                            ui.tags.th("Occupation"),
+                            ui.tags.th(f"Emp ({latest_yr-5})"),
+                            ui.tags.th(f"Emp ({latest_yr-3})"),
+                            ui.tags.th(f"Emp ({latest_yr-1})"),
+                            ui.tags.th(f"Emp ({latest_yr})"),
+                        ),
+                    ),
+                    ui.tags.tbody(*summary_rows),
+                    class_="table table-sm table-hover",
+                    style="font-size: 0.9rem;",
+                )
+
+        with ui.layout_columns(col_widths=[6, 6], gap="1rem"):
+            with ui.card(full_screen=True):
+                ui.card_header("Employment Trends (Selected Occupations)")
+
+                @render_widget
+                def comparison_employment_plot():
+                    df = comparison_data()
+                    if df.is_empty():
+                        return empty_figure("Select occupations to compare", {"text": "#666"})
+
+                    # Group to get total employment per year/occupation
+                    fig = px.line(
+                        df,
+                        x="year",
+                        y="count",
+                        color="occupation",
+                        markers=True,
+                        labels={"count": "Total Employment", "year": "Year"},
+                    )
+
+                    fig.update_layout(
+                        template="plotly_white",
+                        legend={"orientation": "h", "yanchor": "bottom", "y": -0.2, "xanchor": "center", "x": 0.5},
+                    )
+                    return fig
+
+            with ui.card(full_screen=True):
+                ui.card_header("Radar Comparison (AI & Employment Percentiles)")
+                @render_widget
+                def comp_radar_plot():
+                    df = comp_radar_data()
+                    if df.is_empty():
+                        return empty_figure("Select occupations to compare", {"text": "#666"})
+
+                    # We use AI metrics as the axes
+                    categories = [METRICS[k] for k in METRICS]
+
+                    fig = go.Figure()
+
+                    for occ in df["occupation"].unique():
+                        sub = df.filter(pl.col("occupation") == occ)
+                        # Pull values for AI Metrics
+                        r_values = [sub[f"pctl_{k}_wavg"][0] for k in METRICS]
+
+                        # Close the radar loop by repeating the first value
+                        r_values_closed = [*r_values, r_values[0]]
+                        categories_closed = [*categories, categories[0]]
+
+                        fig.add_trace(go.Scatterpolar(
+                            r=r_values_closed,
+                            theta=categories_closed,
+                            fill="toself",
+                            name=occ,
+                            hovertemplate="%{theta}: %{r:.1f}%<extra></extra>",
+                        ))
+
+                    fig.update_layout(
+                        polar={
+                            "radialaxis": {"visible": True, "range": [0, 100]},
+                        },
+                        showlegend=True,
+                        template="plotly_white",
+                        legend={"orientation": "h", "yanchor": "bottom", "y": -0.2, "xanchor": "center", "x": 0.5},
+                    )
+                    return fig
+
+    # PANEL 3: DOWNLOAD DATA
+    with ui.nav_panel("3. Download Data", value="dl_view"), ui.layout_sidebar():
+        with ui.sidebar(bg="#FFFFFF", width=320, title="Export Filters"):
+            ui.input_select("dl_level", "Level", choices=["All Levels", *LEVELS], selected="SSYK4")
+            ui.input_selectize("dl_occs", "Select Specific Occupations", choices={}, multiple=True)
+            ui.hr()
+            ui.input_selectize("dl_sex", "Sex Filter", choices=SEXES, selected=SEXES, multiple=True)
+            ui.input_selectize("dl_age", "Age Filter", choices=AGES, selected=AGES, multiple=True)
+            ui.hr()
+            ui.input_select("dl_format", "File Format", choices={"csv": "CSV", "parquet": "Parquet", "xlsx": "Excel"})
+
+            @render.download(
+                filename=lambda: f"ai_exposure_export.{download_extension(input.dl_format())}",
+                label="Download Dataset",
+            )
+            def download_data():
+                return export_filtered_data(dl_filtered_lf().collect().to_pandas(), input.dl_format())
+
+        with ui.card(full_screen=True):
+            ui.card_header("Filtered Data Preview (First 50 records)")
+            @render.ui
+            def data_preview():
+                return as_great_table_html(dl_filtered_lf().head(50).collect().to_pandas(), METRICS)
+
+### ------- RE-USABLES & LOGIC ------------##
+
+CHOICES_BY_LEVEL = build_choices_by_level(lf, LEVELS)
+ALL_OCCS_LIST = lf.select(pl.col("occupation").unique().sort()).collect().to_series().to_list()
+CHOICES_BY_LEVEL["Search All Levels"] = {o: o for o in ALL_OCCS_LIST}
+CHOICES_BY_LEVEL["All Levels"] = CHOICES_BY_LEVEL["Search All Levels"]
 
 def weighted_avg_expr(col: str) -> pl.Expr:
     return (pl.col(col) * pl.col("count")).sum() / pl.col("count").sum()
 
-
-def apply_paper_style(fig):
-    fig.update_layout(
-        template="simple_white",
-        font=dict(family="Times New Roman, serif", size=12, color="#303030"),
-        margin=dict(l=60, r=20, t=30, b=55),
-        legend=dict(
-            orientation="v",
-            yanchor="top",
-            y=0.98,
-            xanchor="left",
-            x=1.02,
-            font=dict(size=10),
-            bgcolor="rgba(255,255,255,0.7)",
-        ),
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
+def format_pct_chg(val: float | None):
+    if val is None:
+        return ui.span("---")
+    icon = "▲" if val > 0 else "▼" if val < 0 else ""
+    color = COLOR_UP if val > 0 else COLOR_DOWN if val < 0 else "#666"
+    return ui.div(
+        ui.span(f"{icon} {abs(val):.1f}%", style=f"color: {color}; font-size: 1.5rem; font-weight: bold;"),
     )
-    fig.update_xaxes(
-        showgrid=True,
-        gridcolor="#E1E1E1",
-        griddash="dash",
-        linecolor="#909090",
-        zeroline=False,
-    )
-    fig.update_yaxes(
-        showgrid=True,
-        gridcolor="#E1E1E1",
-        griddash="dash",
-        linecolor="#909090",
-        zeroline=False,
-    )
-    return fig
-
-
-@reactive.calc
-def base_filtered_lf() -> pl.LazyFrame:
-    selected_sex = list(input.sex()) if input.sex() else SEXES
-    selected_age = list(input.age()) if input.age() else AGE_GROUPS
-    year_start, year_end = input.year_range()
-
-    return lf.filter(
-        pl.col("sex").is_in(selected_sex),
-        pl.col("age_group").is_in(selected_age),
-        pl.col("year").is_between(year_start, year_end),
-    )
-
-
-@reactive.calc
-def filtered_lf() -> pl.LazyFrame:
-    selected_level = input.level() or "SSYK4"
-    return base_filtered_lf().filter(pl.col("level") == selected_level)
-
-
-@reactive.calc
-def occupation_search_options() -> pl.DataFrame:
-    return (
-        base_filtered_lf()
-        .select(["level", "ssyk_code", "occupation"])
-        .filter(pl.col("ssyk_code").is_not_null(), pl.col("occupation").is_not_null())
-        .with_columns(pl.col("occupation").fill_null("Unknown"))
-        .unique()
-        .sort(["level", "occupation", "ssyk_code"])
-        .collect()
-    )
-
 
 @reactive.effect
-def _sync_occupation_search_choices() -> None:
-    df = occupation_search_options()
-    choices: dict[str, str] = {"__all__": "All occupations (all levels)"}
+def _sync_choices():
+    ui.update_selectize("occ_select", choices=CHOICES_BY_LEVEL[input.level()], server=True)
+    ui.update_selectize("comp_occs", choices=CHOICES_BY_LEVEL[input.comp_level()], server=True)
+    ui.update_selectize("dl_occs", choices=CHOICES_BY_LEVEL[input.dl_level()], server=True)
 
-    for level, code, occupation in df.iter_rows():
-        key = f"{level}::{code}"
-        choices[key] = f"[{level}] {occupation} ({code})"
+@reactive.calc
+def filtered_base() -> pl.LazyFrame:
+    # Use different inputs based on active tab if necessary,
+    # but here we'll simplify: if on comparison tab, use comp_age
+    active_tab = input.main_tabs()
 
-    with reactive.isolate():
-        selected = input.occupation_search() or "__all__"
+    if active_tab == "comp_view":
+        ages = list(input.comp_age() or AGES)
+    else:
+        ages = list(input.age() or AGES)
 
-    if selected not in choices:
-        selected = "__all__"
-
-    ui.update_selectize(
-        "occupation_search",
-        choices=choices,
-        selected=selected,
-        server=True,
+    return lf.filter(
+        pl.col("sex").is_in(list(input.sex() or SEXES)),
+        pl.col("age_group").is_in(ages),
+        pl.col("year").is_between(input.years()[0], input.years()[1]),
     )
 
+@reactive.calc
+def occ_trend_data() -> pl.DataFrame:
+    occ = input.occ_select()
+    if not occ:
+        return pl.DataFrame()
+    q = filtered_base().filter(pl.col("occupation") == occ)
+    if input.level() != "Search All Levels":
+        q = q.filter(pl.col("level") == input.level())
+
+    return q.group_by("year").agg([
+        pl.col("count").sum(),
+        pl.col("pct_chg_1y").mean(),
+        pl.col("pct_chg_3y").mean(),
+        pl.col("pct_chg_5y").mean(),
+        *[weighted_avg_expr(f"pctl_{k}_wavg").alias(f"pctl_{k}_wavg") for k in METRICS],
+    ]).sort("year").collect()
 
 @reactive.calc
-def selected_occupation_parts() -> tuple[str, str] | None:
-    key = input.occupation_search()
-    if not key or key == "__all__":
-        return None
-    if "::" not in key:
-        return None
-    level, code = str(key).split("::", 1)
-    if not level or not code:
-        return None
-    return level, code
-
+def occ_data_latest() -> pl.DataFrame:
+    df = occ_trend_data()
+    return df.tail(1) if not df.is_empty() else pl.DataFrame()
 
 @reactive.calc
-def selected_occupation_level() -> str | None:
-    parts = selected_occupation_parts()
-    if parts is None:
-        return None
-    return parts[0]
-
-
-@reactive.calc
-def selected_occupation_code() -> str | None:
-    parts = selected_occupation_parts()
-    if parts is None:
-        return None
-    return parts[1]
-
-
-@reactive.calc
-def selected_occupation_label() -> str:
-    parts = selected_occupation_parts()
-    if parts is None:
-        return "All occupations"
-    level, code = parts
-
-    df = (
-        occupation_search_options()
-        .filter(pl.col("level") == level, pl.col("ssyk_code") == code)
-        .select("occupation")
-    )
-    if df.is_empty():
-        return f"[{level}] {code}"
-    return f"[{level}] {df['occupation'][0]} ({code})"
-
-
-@reactive.calc
-def trend_data() -> pl.DataFrame:
-    col = metric_col()
-    return (
-        filtered_lf()
-        .group_by("year")
-        .agg(
-            pl.col("count").sum().alias("workers"),
-            weighted_avg_expr(col).alias("score"),
-        )
-        .sort("year")
-        .collect()
-    )
-
-
-@reactive.calc
-def software_engineer_trend_data() -> pl.DataFrame:
-    col = metric_col()
-    ssyk4_lf = base_filtered_lf().filter(pl.col("level") == "SSYK4")
-
-    software_df = (
-        ssyk4_lf
-        .filter(pl.col("ssyk_code") == SOFTWARE_ENGINEER_CODE)
-        .group_by("year")
-        .agg(weighted_avg_expr(col).alias("score"))
-        .collect()
-        .with_columns(pl.lit("Software engineers").alias("series"))
-    )
-
-    overall_df = (
-        ssyk4_lf
-        .group_by("year")
-        .agg(weighted_avg_expr(col).alias("score"))
-        .collect()
-        .with_columns(pl.lit("All SSYK4 occupations").alias("series"))
-    )
-
-    if software_df.is_empty() and overall_df.is_empty():
+def comparison_data() -> pl.DataFrame:
+    occs = input.comp_occs()
+    if not occs:
         return pl.DataFrame()
 
-    return pl.concat([software_df, overall_df], how="vertical").sort(["series", "year"])
+    q = filtered_base().filter(pl.col("occupation").is_in(occs))
+    if input.comp_level() != "All Levels":
+        q = q.filter(pl.col("level") == input.comp_level())
 
+    res = q.group_by(["year", "occupation"]).agg([
+        pl.col("count").sum().alias("count"),
+        *[weighted_avg_expr(f"pctl_{k}_wavg").alias(f"pctl_{k}_wavg") for k in METRICS],
+    ]).collect().sort("year")
 
-@reactive.calc
-def software_engineer_end_year_summary() -> dict[str, float | int | None]:
-    col = metric_col()
-    _, year_end = input.year_range()
-    ssyk4_lf = base_filtered_lf().filter(pl.col("level") == "SSYK4")
-
-    peers = (
-        ssyk4_lf
-        .filter(pl.col("year") == year_end)
-        .group_by(["ssyk_code", "occupation"])
-        .agg(
-            pl.col("count").sum().alias("workers"),
-            weighted_avg_expr(col).alias("score"),
-        )
-        .sort("score", descending=True)
-        .collect()
-    )
-    if peers.is_empty():
-        return {"score": None, "rank": None, "total": None, "gap": None}
-
-    ranked = peers.with_columns(
-        pl.col("score").rank("ordinal", descending=True).cast(pl.Int64).alias("rank"),
-    )
-    software_row = ranked.filter(pl.col("ssyk_code") == SOFTWARE_ENGINEER_CODE)
-    if software_row.is_empty():
-        return {"score": None, "rank": None, "total": ranked.height, "gap": None}
-
-    level_avg = (
-        ssyk4_lf
-        .filter(pl.col("year") == year_end)
-        .select(weighted_avg_expr(col).alias("avg_score"))
-        .collect()
-    )
-    avg_score = float(level_avg["avg_score"][0]) if level_avg.height else 0.0
-    software_score = float(software_row["score"][0])
-
-    return {
-        "score": software_score,
-        "rank": int(software_row["rank"][0]),
-        "total": ranked.height,
-        "gap": software_score - avg_score,
-    }
-
+    return res
 
 @reactive.calc
-def end_year_occupation_scores() -> pl.DataFrame:
-    col = metric_col()
-    _, year_end = input.year_range()
-    return (
-        filtered_lf()
-        .filter(pl.col("year") == year_end)
-        .group_by(["ssyk_code", "occupation"])
-        .agg(
-            pl.col("count").sum().alias("workers"),
-            weighted_avg_expr(col).alias("score"),
-        )
-        .filter(pl.col("ssyk_code").is_not_null())
-        .with_columns(pl.col("occupation").fill_null("Unknown"))
-        .sort("score")
-        .collect()
-    )
-
+def dl_filtered_lf() -> pl.LazyFrame:
+    q = lf
+    if input.dl_level() != "All Levels":
+        q = q.filter(pl.col("level") == input.dl_level())
+    if input.dl_occs():
+        q = q.filter(pl.col("occupation").is_in(input.dl_occs()))
+    if input.dl_sex():
+        q = q.filter(pl.col("sex").is_in(list(input.dl_sex())))
+    if input.dl_age():
+        q = q.filter(pl.col("age_group").is_in(list(input.dl_age())))
+    return q
 
 @reactive.calc
-def selected_occupation_trend_data() -> pl.DataFrame:
-    parts = selected_occupation_parts()
-    if parts is None:
+def comp_radar_data() -> pl.DataFrame:
+    occs = input.comp_occs()
+    if not occs:
         return pl.DataFrame()
-    level, code = parts
+    yr = int(input.comp_year())
 
-    col = metric_col()
-    level_lf = base_filtered_lf().filter(pl.col("level") == level)
-    occ_df = (
-        level_lf
-        .filter(pl.col("ssyk_code") == code)
-        .group_by("year")
-        .agg(weighted_avg_expr(col).alias("score"))
+    # 1. Get filtered base for all occupations in that year to calculate employment percentiles
+    base_yr = filtered_base().filter(pl.col("year") == yr)
+
+    # 2. Total employment by occupation in that year
+    all_occ_emp = (
+        base_yr.group_by("occupation")
+        .agg(pl.col("count").sum())
         .collect()
-        .with_columns(pl.lit("Selected occupation").alias("series"))
+        .sort("count")
     )
-    lvl_df = (
-        level_lf
-        .group_by("year")
-        .agg(weighted_avg_expr(col).alias("score"))
-        .collect()
-        .with_columns(pl.lit("Level average").alias("series"))
+
+    # Calculate employment percentile rank [0-100]
+    # (rank / total) * 100
+    total_occs = all_occ_emp.height
+    all_occ_emp = all_occ_emp.with_columns(
+        ((pl.col("count").rank() / total_occs) * 100).alias("emp_pctl"),
     )
-    if occ_df.is_empty():
-        return pl.DataFrame()
-    return pl.concat([occ_df, lvl_df], how="vertical").sort(["series", "year"])
 
-
-@reactive.calc
-def selected_occupation_end_year_summary() -> dict[str, float | int | None]:
-    parts = selected_occupation_parts()
-    if parts is None:
-        return {"score": None, "rank": None, "total": None, "gap": None}
-    level, code = parts
-
-    col = metric_col()
-    _, year_end = input.year_range()
-    level_lf = base_filtered_lf().filter(pl.col("level") == level)
-
-    peers = (
-        level_lf
-        .filter(pl.col("year") == year_end)
-        .group_by(["ssyk_code", "occupation"])
-        .agg(
-            pl.col("count").sum().alias("workers"),
-            weighted_avg_expr(col).alias("score"),
-        )
-        .with_columns(pl.col("occupation").fill_null("Unknown"))
-        .sort("score", descending=True)
+    # 3. Get AI metrics for selected occupations
+    target_occs_ai = (
+        base_yr.filter(pl.col("occupation").is_in(occs))
+        .group_by("occupation")
+        .agg([
+            *[weighted_avg_expr(f"pctl_{k}_wavg").alias(f"pctl_{k}_wavg") for k in METRICS],
+        ])
         .collect()
     )
-    if peers.is_empty():
-        return {"score": None, "rank": None, "total": None, "gap": None}
 
-    ranked = peers.with_columns(
-        pl.col("score").rank("ordinal", descending=True).cast(pl.Int64).alias("rank"),
-    )
-    row = ranked.filter(pl.col("ssyk_code") == code)
-    if row.is_empty():
-        return {"score": None, "rank": None, "total": ranked.height, "gap": None}
-
-    level_avg = (
-        level_lf
-        .filter(pl.col("year") == year_end)
-        .select(weighted_avg_expr(col).alias("avg_score"))
-        .collect()
-    )
-    avg_score = float(level_avg["avg_score"][0]) if level_avg.height else 0.0
-    score = float(row["score"][0])
-
-    return {
-        "score": score,
-        "rank": int(row["rank"][0]),
-        "total": ranked.height,
-        "gap": score - avg_score,
-    }
-
-
-@reactive.calc
-def representative_occupations() -> pl.DataFrame:
-    df = end_year_occupation_scores()
-    if df.is_empty():
-        return pl.DataFrame()
-
-    n = df.height
-    quantiles = [0.0, 0.10, 0.25, 0.50, 0.75, 0.90, 1.0]
-    idxs = []
-    for q in quantiles:
-        idx = int(round(q * (n - 1)))
-        idx = max(0, min(n - 1, idx))
-        idxs.append(idx)
-
-    idxs = sorted(set(idxs))
-    reps = df[idxs].with_columns(
-        (pl.col("ssyk_code") + " " + pl.col("occupation")).alias("series")
-    )
-    return reps.select(["ssyk_code", "series"])
-
-
-@reactive.calc
-def trajectories_data() -> pl.DataFrame:
-    reps = representative_occupations()
-    if reps.is_empty():
-        return pl.DataFrame()
-
-    codes = reps["ssyk_code"].to_list()
-    col = metric_col()
-
-    series_df = (
-        filtered_lf()
-        .filter(pl.col("ssyk_code").is_in(codes))
-        .group_by(["year", "ssyk_code"])
-        .agg(weighted_avg_expr(col).alias("score"))
-        .collect()
-        .join(reps, on="ssyk_code", how="left")
-        .sort(["series", "year"])
-    )
-    return series_df
-
-
-@reactive.calc
-def broad_group_box_data() -> pl.DataFrame:
-    df = end_year_occupation_scores()
-    if df.is_empty():
-        return pl.DataFrame()
-
-    out = (
-        df.with_columns(pl.col("ssyk_code").str.slice(0, 1).alias("broad_digit"))
-        .filter(pl.col("broad_digit").is_in(list(BROAD_GROUP_LABELS.keys())))
-        .with_columns(
-            pl.col("broad_digit").replace_strict(BROAD_GROUP_LABELS).alias("broad_group")
-        )
-        .sort("broad_group")
-    )
-    return out
-
-
-with ui.navset_pill(id="tab"):
-    with ui.nav_panel("Visuals", value="visuals"):
-        with ui.card(full_screen=True):
-            ui.card_header("Search result: occupation visual")
-
-            @render.text
-            def selected_occupation_caption():
-                if selected_occupation_code() is None:
-                    return "Select an occupation title in the sidebar search box."
-                return f"Selected occupation: {selected_occupation_label()}"
-
-            with ui.layout_columns(col_widths=[4, 4, 4], gap="0.75rem"):
-                with ui.value_box(theme="light"):
-                    "End-year score"
-
-                    @render.text
-                    def selected_occ_score_kpi():
-                        s = selected_occupation_end_year_summary()["score"]
-                        if s is None:
-                            return "No data"
-                        return f"{float(s):.3f}"
-
-                with ui.value_box(theme="light"):
-                    "Rank within selected level"
-
-                    @render.text
-                    def selected_occ_rank_kpi():
-                        summary = selected_occupation_end_year_summary()
-                        if summary["rank"] is None:
-                            return "No data"
-                        return f"{int(summary['rank'])}/{int(summary['total'])}"
-
-                with ui.value_box(theme="light"):
-                    "Gap vs level average"
-
-                    @render.text
-                    def selected_occ_gap_kpi():
-                        gap = selected_occupation_end_year_summary()["gap"]
-                        if gap is None:
-                            return "No data"
-                        return f"{float(gap):+.3f}"
-
-            @render_widget
-            def selected_occupation_plot():
-                df = selected_occupation_trend_data().to_pandas()
-                if df.empty:
-                    return empty_figure("Search and select one occupation to show its trend.", BRAND)
-
-                fig = px.line(
-                    df,
-                    x="year",
-                    y="score",
-                    color="series",
-                    markers=True,
-                    color_discrete_map={
-                        "Selected occupation": "#D9534F",
-                        "Level average": "#4A90E2",
-                    },
-                )
-                fig.update_traces(line=dict(width=2.2))
-                fig.update_layout(
-                    xaxis_title="Year",
-                    yaxis_title=score_axis_label(),
-                    legend_title="",
-                )
-                return apply_paper_style(fig)
-
-        with ui.card(full_screen=True):
-            ui.card_header(f"Software engineers focus ({SOFTWARE_ENGINEER_CODE}: {SOFTWARE_ENGINEER_LABEL})")
-
-            with ui.layout_columns(col_widths=[4, 4, 4], gap="0.75rem"):
-                with ui.value_box(theme="light"):
-                    "End-year score"
-
-                    @render.text
-                    def software_score_kpi():
-                        s = software_engineer_end_year_summary()["score"]
-                        if s is None:
-                            return "No data"
-                        return f"{float(s):.3f}"
-
-                with ui.value_box(theme="light"):
-                    "Rank within SSYK4"
-
-                    @render.text
-                    def software_rank_kpi():
-                        summary = software_engineer_end_year_summary()
-                        if summary["rank"] is None:
-                            return "No data"
-                        return f"{int(summary['rank'])}/{int(summary['total'])}"
-
-                with ui.value_box(theme="light"):
-                    "Gap vs SSYK4 average"
-
-                    @render.text
-                    def software_gap_kpi():
-                        gap = software_engineer_end_year_summary()["gap"]
-                        if gap is None:
-                            return "No data"
-                        return f"{float(gap):+.3f}"
-
-            @render_widget
-            def software_trend_plot():
-                df = software_engineer_trend_data().to_pandas()
-                if df.empty:
-                    return empty_figure("No software engineer data available for current filters.", BRAND)
-
-                fig = px.line(
-                    df,
-                    x="year",
-                    y="score",
-                    color="series",
-                    markers=True,
-                    color_discrete_map={
-                        "Software engineers": "#D9534F",
-                        "All SSYK4 occupations": "#4A90E2",
-                    },
-                )
-                fig.update_traces(line=dict(width=2.4))
-                fig.update_layout(
-                    xaxis_title="Year",
-                    yaxis_title=score_axis_label(),
-                    legend_title="",
-                )
-                return apply_paper_style(fig)
-
-        with ui.layout_columns(col_widths=[6, 6], gap="1rem"):
-            with ui.card(full_screen=True):
-                ui.card_header("Figure-style trajectories for selected occupations")
-
-                @render_widget
-                def trajectories_plot():
-                    df = trajectories_data().to_pandas()
-                    if df.empty:
-                        return empty_figure("No data available for current filters.", BRAND)
-
-                    fig = px.line(
-                        df,
-                        x="year",
-                        y="score",
-                        color="series",
-                        markers=False,
-                        color_discrete_sequence=PAPER_COLORS,
-                    )
-                    fig.update_traces(line=dict(width=2))
-                    fig.update_layout(
-                        xaxis_title="Year",
-                        yaxis_title=score_axis_label(),
-                    )
-                    return apply_paper_style(fig)
-
-            with ui.card(full_screen=True):
-                ui.card_header("AI exposure by broad occupation group")
-
-                @render_widget
-                def broad_group_boxplot():
-                    df = broad_group_box_data().to_pandas()
-                    if df.empty:
-                        return empty_figure("No occupation distribution available.", BRAND)
-
-                    order = list(BROAD_GROUP_LABELS.values())
-                    fig = px.box(
-                        df,
-                        x="score",
-                        y="broad_group",
-                        orientation="h",
-                        points="outliers",
-                        category_orders={"broad_group": order},
-                    )
-                    fig.update_traces(
-                        marker=dict(color="#4A90E2", size=3),
-                        line=dict(color="#4A90E2", width=1.2),
-                        fillcolor="rgba(74,144,226,0.35)",
-                    )
-                    fig.update_layout(
-                        xaxis_title=score_axis_label(),
-                        yaxis_title="",
-                        showlegend=False,
-                    )
-                    return apply_paper_style(fig)
-
-    with ui.nav_panel("Download", value="download_view"):
-        with ui.card():
-            ui.card_header("Export actions")
-            ui.input_select(
-                "download_format",
-                "Download format",
-                choices={"csv": "CSV", "parquet": "Parquet", "excel": "Excel (.xlsx)"},
-                selected="csv",
-            )
-
-            @render.download(
-                filename=lambda: f"ai_exposure_data.{download_extension(input.download_format() or 'csv')}",
-                media_type=lambda: download_media_type(input.download_format() or "csv"),
-                label="Download filtered dataset",
-            )
-            def download_filtered_data():
-                df = filtered_lf().collect().to_pandas()
-                return export_filtered_data(df, input.download_format() or "csv")
-
-        with ui.card():
-            ui.card_header("Filtered raw data (top 100)")
-
-            @render.ui
-            def sample_data():
-                df = filtered_lf().head(100).collect().to_pandas()
-                return as_great_table_html(df, METRICS)
+    # 4. Join employment percentile onto AI metrics
+    return target_occs_ai.join(all_occ_emp.select(["occupation", "emp_pctl"]), on="occupation")

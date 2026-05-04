@@ -1,10 +1,12 @@
-"""Build processed unemployment data from the raw parquet source.
+"""
+Build processed unemployment data from the raw parquet source.
 
 This script mirrors the transformation pipeline in `data_edits.ipynb`.
 """
 
-import polars as pl
 from pathlib import Path
+
+import polars as pl
 
 try:
     from scripts.fcts import inspect_lazy
@@ -49,10 +51,10 @@ def compute_change_features(pulled_lf: pl.LazyFrame) -> pl.LazyFrame:
                 (pl.col("unemp_count") - pl.col("unemp_count").shift(1).over(KEYS)).alias("chg_1y"),
                 (pl.col("unemp_count") - pl.col("unemp_count").shift(3).over(KEYS)).alias("chg_3y"),
                 (pl.col("unemp_count") - pl.col("unemp_count").shift(5).over(KEYS)).alias("chg_5y"),
-                ((pl.col("unemp_count") / pl.col("unemp_count").shift(1).over(KEYS) - 1) * 100).alias("pct_chg_1y"),
-                ((pl.col("unemp_count") / pl.col("unemp_count").shift(3).over(KEYS) - 1) * 100).alias("pct_chg_3y"),
-                ((pl.col("unemp_count") / pl.col("unemp_count").shift(5).over(KEYS) - 1) * 100).alias("pct_chg_5y"),
-            ]
+                ((pl.col("unemp_count") / pl.col("unemp_count").shift(1).over(KEYS) - 1) * 100).fill_nan(0).replace(float("inf"), 0).alias("pct_chg_1y"),
+                ((pl.col("unemp_count") / pl.col("unemp_count").shift(3).over(KEYS) - 1) * 100).fill_nan(0).replace(float("inf"), 0).alias("pct_chg_3y"),
+                ((pl.col("unemp_count") / pl.col("unemp_count").shift(5).over(KEYS) - 1) * 100).fill_nan(0).replace(float("inf"), 0).alias("pct_chg_5y"),
+            ],
         ).drop("unemp_count")
     )
 
