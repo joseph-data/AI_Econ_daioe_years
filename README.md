@@ -1,8 +1,6 @@
 # Yearly Employed Persons by Occupation and DAIOEs
 
-<p align="left">
-  <img src="logos/lab.svg" alt="AI-Econ Lab logo" width="200" height="">
-</p>
+![AI-Econ Lab logo](logos/lab.svg)
 
 ## Overview
 
