@@ -14,7 +14,10 @@ Output
 
 from dataclasses import dataclass
 from pathlib import Path
+
 import polars as pl
+
+YEAR_CHECK = 2022
 
 
 # -------------------------
@@ -47,9 +50,11 @@ def default_paths(root: Path | None = None) -> Paths:
 # -------------------------
 def ensure_inputs(paths: Paths) -> None:
     if not paths.in_file.exists():
-        raise FileNotFoundError(f"Input parquet not found: {paths.in_file}")
+        msg = f"Input parquet not found: {paths.in_file}"
+        raise FileNotFoundError(msg)
     if not paths.map_file.exists():
-        raise FileNotFoundError(f"Mapping file not found: {paths.map_file}")
+        msg = f"Mapping file not found: {paths.map_file}"
+        raise FileNotFoundError(msg)
 
 
 def load_ssyk4(paths: Paths) -> pl.DataFrame:
@@ -58,7 +63,8 @@ def load_ssyk4(paths: Paths) -> pl.DataFrame:
     required_cols = {"code", "age", "sex", "year", "count"}
     missing = required_cols - set(df.columns)
     if missing:
-        raise ValueError(f"Missing required columns: {sorted(missing)}")
+        msg = f"Missing required columns: {sorted(missing)}"
+        raise ValueError(msg)
 
     # Normalize dtypes a bit (safe + helps with slicing/grouping)
     df = df.with_columns(
@@ -169,9 +175,9 @@ def main() -> None:
 
     # Optional quick check (kept from your notebook)
     check = df_all.filter(
-        (pl.col("age") == "35-39") & (pl.col("year") == 2022) & (pl.col("ssyk_code") == "217")
+        (pl.col("age") == "35-39") & (pl.col("year") == YEAR_CHECK) & (pl.col("ssyk_code") == "217"),
     )
-    print("\nRandom check (age=35-39, year=2022, ssyk_code=217):")
+    print(f"\nRandom check (age=35-39, year={YEAR_CHECK}, ssyk_code=217):")
     print(check)
 
     df_name_maps = load_name_map(paths)

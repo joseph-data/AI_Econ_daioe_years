@@ -10,21 +10,21 @@ Notes
 -----
 - Uses ThreadPoolExecutor because SCB calls are I/O bound.
 - Keeps transformation inside Polars where possible.
+
 """
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Dict, Tuple, Any
+from typing import Any
 
 import polars as pl
 from pyscbwrapper import SCB
-from concurrent.futures import ThreadPoolExecutor, as_completed
-
 
 # =========================
 # Configuration
 # =========================
-TableSpec = Tuple[str, str, str, str, str]
+TableSpec = tuple[str, str, str, str, str]
 
 
 @dataclass(frozen=True)
@@ -32,7 +32,7 @@ class Config:
     root: Path
     out_dir: Path
     log_dir: Path
-    tables: Dict[str, TableSpec]
+    tables: dict[str, TableSpec]
     max_logs: int = 20
     max_workers: int = 8
 
@@ -45,7 +45,7 @@ def default_config() -> Config:
     out_dir.mkdir(parents=True, exist_ok=True)
     log_dir.mkdir(parents=True, exist_ok=True)
 
-    tables: Dict[str, TableSpec] = {
+    tables: dict[str, TableSpec] = {
         "ssyk96_05_to_13": ("en", "AM", "AM0208", "AM0208E", "Yreg34"),
         "ssyk12_14_to_18": ("en", "AM", "AM0208", "AM0208E", "YREG51"),
         "ssyk12_19_to_21": ("en", "AM", "AM0208", "AM0208E", "YREG51N"),
@@ -59,22 +59,23 @@ def default_config() -> Config:
 # Utilities
 # =========================
 def log(msg: str) -> None:
-    print(f"[{datetime.now().isoformat(timespec='seconds')}] {msg}")
+    print(f"[{datetime.now(tz=UTC).isoformat(timespec='seconds')}] {msg}")
 
 
-def find_key(var_dict: Dict[str, Any], needle: str) -> str:
+def find_key(var_dict: dict[str, Any], needle: str) -> str:
     """Return the first SCB variable key containing `needle` (case-insensitive)."""
     needle = needle.lower()
-    for k in var_dict.keys():
+    for k in var_dict:
         if needle in k.lower():
             return k
-    raise KeyError(f"Could not find a variable containing '{needle}'. Keys: {list(var_dict.keys())[:10]} ...")
+    msg = f"Could not find a variable containing '{needle}'. Keys: {list(var_dict.keys())[:10]} ..."
+    raise KeyError(msg)
 
 
 def update_log(cfg: Config, tab_id: str) -> None:
     """Update per-table log file, newest first, keep only cfg.max_logs entries."""
     log_path = cfg.log_dir / f"{tab_id}_update_log.txt"
-    new_entry = datetime.now().isoformat()
+    new_entry = datetime.now(tz=UTC).isoformat()
 
     entries = [new_entry]
     if log_path.exists():
@@ -83,7 +84,7 @@ def update_log(cfg: Config, tab_id: str) -> None:
     log_path.write_text("\n".join(entries[: cfg.max_logs]) + "\n", encoding="utf-8")
 
 
-def build_maps(scb: SCB, vars_info: Dict[str, Any], occ_k: str, sex_k: str) -> tuple[dict, dict]:
+def build_maps(scb: SCB, vars_info: dict[str, Any], occ_k: str, sex_k: str) -> tuple[dict, dict]:
     """Build code->label maps from query + variables."""
     query = scb.get_query()["query"]
 
@@ -92,22 +93,22 @@ def build_maps(scb: SCB, vars_info: Dict[str, Any], occ_k: str, sex_k: str) -> t
     occ_codes = query[0]["selection"]["values"]
     sex_codes = query[2]["selection"]["values"]
 
-    occ_map = dict(zip(occ_codes, vars_info[occ_k]))
-    sex_map = dict(zip(sex_codes, vars_info[sex_k]))
+    occ_map = dict(zip(occ_codes, vars_info[occ_k], strict=True))
+    sex_map = dict(zip(sex_codes, vars_info[sex_k], strict=True))
     return occ_map, sex_map
 
 
 # =========================
 # Core pipeline
 # =========================
-def fetch_raw(scb: SCB) -> tuple[Dict[str, Any], list[dict]]:
+def fetch_raw(scb: SCB) -> tuple[dict[str, Any], list[dict]]:
     """Fetch variables + data payload from SCB."""
     vars_info = scb.get_variables()
     raw_data = scb.get_data()["data"]
     return vars_info, raw_data
 
 
-def set_full_query(scb: SCB, vars_info: Dict[str, Any]) -> tuple[str, str, str, str, str]:
+def set_full_query(scb: SCB, vars_info: dict[str, Any]) -> tuple[str, str, str, str, str]:
     """Discover variable keys and set SCB query to fetch the full cube."""
     occ_k = find_key(vars_info, "occupation")
     year_k = find_key(vars_info, "year")
@@ -125,7 +126,7 @@ def set_full_query(scb: SCB, vars_info: Dict[str, Any]) -> tuple[str, str, str, 
             sex_k: vars_info[sex_k],
             age_k: vars_info[age_k],
             obs_k: vars_info[obs_k][0],
-        }
+        },
     )
 
     return occ_k, year_k, sex_k, age_k, obs_k
@@ -150,7 +151,7 @@ def transform(raw_data: list[dict], occ_map: dict, sex_map: dict) -> pl.DataFram
         .select(["code", "occupation", "age", "sex", "year", "count"])
         # filter before casting
         .filter(
-            ~pl.col("code").str.ends_with("0002")
+            ~pl.col("code").str.ends_with("0002"),
         )
         .with_columns(
             pl.col("code").cast(pl.Utf8),
@@ -188,11 +189,12 @@ def fetch_clean_write(cfg: Config, tab_id: str, spec: TableSpec) -> bool:
         update_log(cfg, tab_id)
 
         log(f"Saved: {out_path} ({df.height} rows)")
-        return True
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         log(f"FAILED: {tab_id} -> {type(e).__name__}: {e}")
         return False
+    else:
+        return True
 
 
 # =========================
@@ -200,7 +202,7 @@ def fetch_clean_write(cfg: Config, tab_id: str, spec: TableSpec) -> bool:
 # =========================
 def main() -> None:
     cfg = default_config()
-    start = datetime.now()
+    start = datetime.now(tz=UTC)
 
     log(f"ROOT: {cfg.root}")
     log(f"OUT_DIR: {cfg.out_dir}")
@@ -208,7 +210,7 @@ def main() -> None:
     log(f"Tables: {list(cfg.tables.keys())}")
 
     workers = min(len(cfg.tables), cfg.max_workers)
-    results: Dict[str, bool] = {}
+    results: dict[str, bool] = {}
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {pool.submit(fetch_clean_write, cfg, tab_id, spec): tab_id for tab_id, spec in cfg.tables.items()}
@@ -216,7 +218,7 @@ def main() -> None:
             tab_id = futures[fut]
             results[tab_id] = bool(fut.result())
 
-    duration = datetime.now() - start
+    duration = datetime.now(tz=UTC) - start
     ok = sum(results.values())
     total = len(results)
 

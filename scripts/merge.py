@@ -11,16 +11,16 @@ Logic
 - Write a run log to logs/combine_ssyk12.log
 """
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import polars as pl
-
 
 # =========================
 # Config
 # =========================
 ID_CANDIDATES = ["code", "occupation", "age", "year", "sex"]
+LOG_PREVIEW_LIMIT = 10
 PROVENANCE_COLS = ["source_file", "source_rank"]
 REQUIRED_COLS = {"count"}  # identity cols are discovered from candidates
 
@@ -62,8 +62,8 @@ def make_logger(log_path: Path):
     log_path.write_text("=== combine_ssyk12 run ===\n", encoding="utf-8")
 
     def _log(msg: str) -> None:
-        line = f"[{datetime.now().isoformat(timespec='seconds')}] {msg.rstrip()}\n"
-        with open(log_path, "a", encoding="utf-8") as f:
+        line = f"[{datetime.now(tz=UTC).isoformat(timespec='seconds')}] {msg.rstrip()}\n"
+        with log_path.open("a", encoding="utf-8") as f:
             f.write(line)
 
     return _log
@@ -113,10 +113,10 @@ def main() -> None:
         return
 
     log("[1] Files (newest first):")
-    for i, p in enumerate(files[:10]):
+    for i, p in enumerate(files[:LOG_PREVIEW_LIMIT]):
         log(f"     {i:02d}: {p.name}")
-    if len(files) > 10:
-        log(f"     ... +{len(files) - 10} more")
+    if len(files) > LOG_PREVIEW_LIMIT:
+        log(f"     ... +{len(files) - LOG_PREVIEW_LIMIT} more")
 
     # Get schema/columns cheaply from first file
     first_cols = pl.read_parquet(files[0], n_rows=1).columns

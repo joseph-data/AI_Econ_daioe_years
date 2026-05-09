@@ -12,3 +12,5 @@ wheels/
 # Virtual environments
 .venv
 .vscode
+.claude
+src/
