@@ -1,15 +1,14 @@
 """
-DAIOE × SCB (SSYK 2012) multi-level aggregation pipeline.
+DAIOE x SCB (SSYK 2012) multi-level aggregation pipeline.
 
 This module contains the reusable pipeline steps. See main.py for the CLI entrypoint.
 """
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
 
 import polars as pl
-
 
 # ----------------------------
 # Configuration
@@ -27,6 +26,10 @@ AGE_GROUP_MAP = {
     "60-64": "Senior (50+)",
     "065-69": "Senior (50+)",
 }
+
+SSYK4_CODE_LEN: int = 4
+EXPOSURE_LEVEL_BOUNDS: tuple[int, int, int, int] = (20, 40, 60, 80)
+
 
 @dataclass(frozen=True)
 class PipelineConfig:
@@ -52,11 +55,9 @@ def default_config(root: Path | None = None) -> PipelineConfig:
         "03_translated_files/daioe_ssyk2012_translated.csv"
     )
 
-    scb_source = str(
-        "https://raw.githubusercontent.com/joseph-data/AI_Econ_daioe_years/daioe_pull/"
-        "data/processed/ssyk12_aggregated_ssyk4_to_ssyk1.parquet"
-    )
-    
+    scb_source = ("https://raw.githubusercontent.com/joseph-data/AI_Econ_daioe_years/daioe_pull/"
+        "data/processed/ssyk12_aggregated_ssyk4_to_ssyk1.parquet")
+
     out_file = data_dir / "daioe_scb_years_all_levels.parquet"
 
     return PipelineConfig(
@@ -111,6 +112,7 @@ def extend_daioe_years_to_match_scb(
 ) -> pl.LazyFrame:
     """
     Extend DAIOE forward in time if SCB has newer years.
+
     Replicates the last DAIOE year values across missing years.
     """
     daioe_max = daioe_lf.select(pl.max(year_col)).collect().item()
@@ -148,7 +150,7 @@ def scb_level4_counts(
     return (
         scb_lf
         .with_columns(pl.col(code_col).cast(pl.Utf8))
-        .filter(pl.col(code_col).str.len_chars() == 4)
+        .filter(pl.col(code_col).str.len_chars() == SSYK4_CODE_LEN)
         .group_by([year_col, code_col])
         .agg(pl.col(count_col).sum().alias("total_count"))
     )
@@ -167,11 +169,12 @@ def collect_daioe_columns(lf: pl.LazyFrame, prefix: str = "daioe_") -> list[str]
     return [c for c in lf.collect_schema().names() if c.startswith(prefix)]
 
 
-def aggregate_daioe_level(
+def aggregate_daioe_level(  # noqa: PLR0913
     lf: pl.LazyFrame,
     daioe_cols: Iterable[str],
     code_col: str,
     level_label: str,
+    *,
     weight_col: str = "total_count",
     prefix: str = "daioe_",
     add_percentiles: bool = True,
@@ -179,13 +182,16 @@ def aggregate_daioe_level(
     descending: bool = False,
 ) -> pl.LazyFrame:
     """
-    Aggregate DAIOE columns to a given SSYK level and optionally add percentile ranks
-    within each (year, level) for both simple and employment-weighted averages.
+    Aggregate DAIOE columns to a given SSYK level with optional percentile ranks.
+
+    Adds simple and employment-weighted averages per (year, level), and optionally
+    within-year percentile ranks for both average types.
 
     Notes
     -----
     - Percentiles are computed in a version-compatible way (no Expr.rank(pct=...)).
     - Percentiles are scaled to 0..pct_scale (default 0..100).
+
     """
     w = pl.col(weight_col)
 
@@ -220,13 +226,14 @@ def aggregate_daioe_level(
             .then((rank_expr - 1) / (n_expr - 1))
             .otherwise(0.0)
             * pct_scale
-        ).name.prefix("pctl_")
+        ).name.prefix("pctl_"),
     )
 
 
 def build_all_levels(
     daioe_scb_joined: pl.LazyFrame,
     daioe_cols: Iterable[str],
+    *,
     add_percentiles: bool = True,
     pct_scale: int = 100,
     descending: bool = False,
@@ -274,6 +281,7 @@ def add_exposure_levels_from_weighted_percentiles(
     if not percentile_cols:
         return lf
 
+    _q1, _q2, _q3, _q4 = EXPOSURE_LEVEL_BOUNDS
     exposure_exprs: list[pl.Expr] = []
     for col_name in percentile_cols:
         metric = col_name[len(percentile_prefix): -len(weighted_suffix)]
@@ -283,17 +291,17 @@ def add_exposure_levels_from_weighted_percentiles(
         exposure_exprs.append(
             pl.when(p.is_null())
             .then(None)
-            .when(p <= 20)
+            .when(p <= _q1)
             .then(1)
-            .when(p <= 40)
+            .when(p <= _q2)
             .then(2)
-            .when(p <= 60)
+            .when(p <= _q3)
             .then(3)
-            .when(p <= 80)
+            .when(p <= _q4)
             .then(4)
             .otherwise(5)
             .cast(pl.Int8)
-            .alias(out_col)
+            .alias(out_col),
         )
 
     return lf.with_columns(exposure_exprs)

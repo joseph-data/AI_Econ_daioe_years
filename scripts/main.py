@@ -1,5 +1,5 @@
 """
-DAIOE × SCB (SSYK 2012) multi-level aggregation pipeline.
+DAIOE x SCB (SSYK 2012) multi-level aggregation pipeline.
 
 Entry point that wires config + pipeline and writes the Parquet output.
 """
@@ -13,7 +13,7 @@ from pipeline import (
 
 
 def main() -> None:
-    print("== DAIOE × SCB SSYK12 pipeline ==")
+    print("== DAIOE x SCB SSYK12 pipeline ==")
 
     config = default_config()
     ensure_dir(config.data_dir)
