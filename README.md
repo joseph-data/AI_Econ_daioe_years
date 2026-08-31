@@ -1,3 +1,15 @@
+> **Retired 2026-08-31.** This repository is superseded by
+> [`ai-econ-lab/AI_Econ_daioe_years_v2`](https://github.com/ai-econ-lab/AI_Econ_daioe_years_v2),
+> which runs the same SCB fetch independently and additionally computes
+> employment-change metrics (`chg_1y/3y/5y`, `pct_chg_1y/3y/5y`) this
+> repository never had. `AI_Econ_daioe_months_v2` now depends on `_v2`'s
+> output directly, not this repository's. The daily pipeline below has
+> been disabled; the repository is archived and kept for history only.
+> The documentation below describes the pipeline as it operated while
+> live.
+
+---
+
 # Yearly Employed Persons by Occupation and DAIOEs
 
 ![AI-Econ Lab logo](logos/lab.svg)
